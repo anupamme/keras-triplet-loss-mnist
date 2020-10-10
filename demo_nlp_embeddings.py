@@ -81,7 +81,7 @@ test = ["the", "cat", "sat", "on", "the", "mat"]
 !unzip -q glove.6B.zip
 
 path_to_glove_file = os.path.join(
-    os.path.expanduser("~"), ".keras/datasets/glove.6B.100d.txt"
+    os.path.expanduser("~"), "/mnt/keras/datasets/glove.6B.100d.txt"
 )
 
 embeddings_index = {}
@@ -120,3 +120,40 @@ embedding_layer = Embedding(
     trainable=False,
 )
 
+from tensorflow.keras import layers
+
+int_sequences_input = keras.Input(shape=(None,), dtype="int64")
+embedded_sequences = embedding_layer(int_sequences_input)
+x = layers.Conv1D(128, 5, activation="relu")(embedded_sequences)
+x = layers.MaxPooling1D(5)(x)
+x = layers.Conv1D(128, 5, activation="relu")(x)
+x = layers.MaxPooling1D(5)(x)
+x = layers.Conv1D(128, 5, activation="relu")(x)
+x = layers.GlobalMaxPooling1D()(x)
+x = layers.Dense(128, activation="relu")(x)
+x = layers.Dropout(0.5)(x)
+preds = layers.Dense(len(class_names), activation="softmax")(x)
+model = keras.Model(int_sequences_input, preds)
+model.summary()
+
+x_train = vectorizer(np.array([[s] for s in train_samples])).numpy()
+x_val = vectorizer(np.array([[s] for s in val_samples])).numpy()
+
+y_train = np.array(train_labels)
+y_val = np.array(val_labels)
+
+model.compile(
+    loss="sparse_categorical_crossentropy", optimizer="rmsprop", metrics=["acc"]
+)
+model.fit(x_train, y_train, batch_size=128, epochs=20, validation_data=(x_val, y_val))
+
+string_input = keras.Input(shape=(1,), dtype="string")
+x = vectorizer(string_input)
+preds = model(x)
+end_to_end_model = keras.Model(string_input, preds)
+
+probabilities = end_to_end_model.predict(
+    [["this message is about computer graphics and 3D modeling"]]
+)
+
+class_names[np.argmax(probabilities[0])]
