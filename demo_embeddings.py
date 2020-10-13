@@ -44,7 +44,7 @@ def get_model_LSTM():
     # Add a classifier
 #    outputs = layers.Bidirectional(layers.LSTM(64))(x)
     x = layers.Bidirectional(layers.LSTM(64))(x)
-    outputs = layers.Dense(1, activation="sigmoid")(x)
+    outputs = layers.Dense(256, activation=None)(x)
     model = tf.keras.Model(inputs, outputs)
     return model
 
@@ -69,7 +69,7 @@ y_train.shape: (10,): bool
 
 '''
 def get_data_numerical():
-    maxlen = 200
+    maxlen = 20000
     x_train = np.random.rand(maxlen, 1)
     y_train = np.zeros(x_train.shape)
     for id_r, item_r in enumerate(x_train):
@@ -92,11 +92,11 @@ def get_data_numerical():
     
     
 def main():
-    model = get_model()
+#    model = get_model()
 #
 #    model = get_model(shape=(500,500,3))
     
-#    model = get_model_LSTM()
+    model = get_model_LSTM()
 
     # Compile the model
     model.compile(
@@ -107,22 +107,23 @@ def main():
 #        optimizer=tf.keras.optimizers.Adam(0.001),
 #        loss=tfa.losses.TripletSemiHardLoss())
 
-    train_dataset, test_dataset = get_data()
+#    train_dataset, test_dataset = get_data()
 #    train_dataset, test_dataset = get_data(data_type='beans')
 
 #    (x_train, y_train), (x_val, y_val) = get_data_text()
-#    test_dataset = (x_val, y_val)
-#    (x_train, y_train), (x_val, y_val) = get_data_numerical()
+    
+    (x_train, y_train), (x_val, y_val) = get_data_numerical()
+    test_dataset = (x_val, y_val)
     
 #    model.compile(tf.keras.optimizers.Adam(0.001), tfa.losses.TripletSemiHardLoss(), metrics=["accuracy"])
-#    history = model.fit(x_train, y_train, batch_size=32, epochs=2, validation_data=(x_val, y_val))
+    history = model.fit(x_train, y_train, batch_size=32, epochs=1)
 
     
     
     # Train the network
-    history = model.fit(
-        train_dataset,
-        epochs=1)
+#    history = model.fit(
+#        train_dataset,
+#        epochs=1)
 #
 #    history2 = model2.fit(
 #        train_dataset2,
@@ -130,7 +131,9 @@ def main():
 
 
     # Evaluate the network
-    print_dataset(train_dataset)
+#    import pdb
+#    pdb.set_trace()
+#    print_dataset(test_dataset)
     
     results = model.predict(test_dataset)
     # Save test embeddings for visualization in projector
