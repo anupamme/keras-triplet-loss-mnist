@@ -130,8 +130,6 @@ def main():
 
 
     # Evaluate the network
-    import pdb
-    pdb.set_trace()
     print_dataset(train_dataset)
     
     results = model.predict(test_dataset)
