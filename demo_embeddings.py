@@ -29,9 +29,8 @@ def get_model(shape=(28,28,1)):
         tf.keras.layers.MaxPooling2D(pool_size=2),
         tf.keras.layers.Dropout(0.3),
         tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(128, activation=None), # No activation on final dense layer
-        tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)), # L2 normalize embeddings,
-#        tf.keras.layers.Dense(1, activation="sigmoid")
+        tf.keras.layers.Dense(256, activation=None), # No activation on final dense layer
+        tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)) # L2 normalize embeddings,
     ])
 
 def get_model_LSTM():
