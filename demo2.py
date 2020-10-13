@@ -30,7 +30,8 @@ def get_model(shape=(28,28,1)):
         tf.keras.layers.Dropout(0.3),
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(128, activation=None), # No activation on final dense layer
-        tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)) # L2 normalize embeddings
+        tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)), # L2 normalize embeddings,
+#        tf.keras.layers.Dense(1, activation="sigmoid")
     ])
 
 def get_model_LSTM():
@@ -92,37 +93,37 @@ def get_data_numerical():
     
     
 def main():
-#    model = get_model()
+    model = get_model()
 #
 #    model = get_model(shape=(500,500,3))
     
-    model = get_model_LSTM()
+#    model = get_model_LSTM()
 
     # Compile the model
-#    model.compile(
-#        optimizer=tf.keras.optimizers.Adam(0.001),
-#        loss=tfa.losses.TripletSemiHardLoss())
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(0.001),
+        loss=tfa.losses.TripletSemiHardLoss())
 #
 #    model2.compile(
 #        optimizer=tf.keras.optimizers.Adam(0.001),
 #        loss=tfa.losses.TripletSemiHardLoss())
 
-#    train_dataset, test_dataset = get_data()
+    train_dataset, test_dataset = get_data()
 #    train_dataset, test_dataset = get_data(data_type='beans')
 
-    (x_train, y_train), (x_val, y_val) = get_data_text()
-    test_dataset = (x_val, y_val)
+#    (x_train, y_train), (x_val, y_val) = get_data_text()
+#    test_dataset = (x_val, y_val)
 #    (x_train, y_train), (x_val, y_val) = get_data_numerical()
     
-    model.compile(tf.keras.optimizers.Adam(0.001), tfa.losses.TripletSemiHardLoss(), metrics=["accuracy"])
-    history = model.fit(x_train, y_train, batch_size=32, epochs=2, validation_data=(x_val, y_val))
+#    model.compile(tf.keras.optimizers.Adam(0.001), tfa.losses.TripletSemiHardLoss(), metrics=["accuracy"])
+#    history = model.fit(x_train, y_train, batch_size=32, epochs=2, validation_data=(x_val, y_val))
 
     
     
     # Train the network
-#    history = model.fit(
-#        train_dataset,
-#        epochs=1)
+    history = model.fit(
+        train_dataset,
+        epochs=1)
 #
 #    history2 = model2.fit(
 #        train_dataset2,
@@ -130,7 +131,9 @@ def main():
 
 
     # Evaluate the network
-#    print_dataset(test_dataset)
+    import pdb
+    pdb.set_trace()
+    print_dataset(train_dataset)
     
     results = model.predict(test_dataset)
     # Save test embeddings for visualization in projector
