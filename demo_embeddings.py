@@ -1,5 +1,6 @@
 import io
 import numpy as np
+import sys
 
 import tensorflow as tf
 import tensorflow_addons as tfa
@@ -92,48 +93,38 @@ def get_data_numerical():
     
     
 def main():
-#    model = get_model()
-#
-#    model = get_model(shape=(500,500,3))
     
-    model = get_model_LSTM()
+    _type = sys.argv[1]
+    
+    if _type == 'mnist':
+        model = get_model()
+        train_dataset, test_dataset = get_data()
+    elif _type == 'imdb':
+        model = get_model_LSTM()
+        (x_train, y_train), (x_val, y_val) = get_data_text()
+        test_dataset = (x_val, y_val)
+    elif _type == 'func':
+        model = get_model_LSTM()
+        (x_train, y_train), (x_val, y_val) = get_data_numerical()
+        test_dataset = (x_val, y_val)
+        
 
     # Compile the model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
-#
-#    model2.compile(
-#        optimizer=tf.keras.optimizers.Adam(0.001),
-#        loss=tfa.losses.TripletSemiHardLoss())
 
-#    train_dataset, test_dataset = get_data()
-#    train_dataset, test_dataset = get_data(data_type='beans')
 
-#    (x_train, y_train), (x_val, y_val) = get_data_text()
-    
-    (x_train, y_train), (x_val, y_val) = get_data_numerical()
-    test_dataset = (x_val, y_val)
-    
-#    model.compile(tf.keras.optimizers.Adam(0.001), tfa.losses.TripletSemiHardLoss(), metrics=["accuracy"])
-    history = model.fit(x_train, y_train, batch_size=32, epochs=1)
+    if _type == 'mnist':
+        history = model.fit(
+        train_dataset,
+        epochs=1)
+    elif _type == 'imdb':
+        history = model.fit(x_train, y_train, batch_size=32, epochs=1)
+    elif _type == 'func':
+        history = model.fit(x_train, y_train, batch_size=32, epochs=1)
 
     
-    
-    # Train the network
-#    history = model.fit(
-#        train_dataset,
-#        epochs=1)
-#
-#    history2 = model2.fit(
-#        train_dataset2,
-#        epochs=1)
-
-
-    # Evaluate the network
-#    import pdb
-#    pdb.set_trace()
-#    print_dataset(test_dataset)
     
     results = model.predict(test_dataset)
     # Save test embeddings for visualization in projector
