@@ -49,7 +49,7 @@ def get_model_LSTM():
     return model
 
 def get_data_text():
-    max_features = 20000  # Only consider the top 20k words
+    max_features = 200000  # Only consider the top 20k words
     maxlen = 200  # Only consider the first 200 words of each movie review
     (x_train, y_train), (x_val, y_val) = tf.keras.datasets.imdb.load_data(
         num_words=max_features
@@ -139,10 +139,10 @@ def main():
     # Save test embeddings for visualization in projector
     np.savetxt("vecs.tsv", results, delimiter='\t')
 
-    out_m = io.open('meta.tsv', 'w', encoding='utf-8')
-    for img, labels in tfds.as_numpy(test_dataset):
-        [out_m.write(str(x) + "\n") for x in labels]
-    out_m.close()
+#    out_m = io.open('meta.tsv', 'w', encoding='utf-8')
+#    for img, labels in tfds.as_numpy(test_dataset):
+#        [out_m.write(str(x) + "\n") for x in labels]
+#    out_m.close()
 
 
     try:
