@@ -1,11 +1,10 @@
 import io
 import numpy as np
-import sys
 
 import tensorflow as tf
 import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
-
+from tensorflow.keras import layers
 
 def _normalize_img(img, label):
     img = tf.cast(img, tf.float32) / 255.
@@ -36,28 +35,21 @@ def get_model(shape=(28,28,1)):
 
 def get_model_LSTM():
     max_features = 20000  # Only consider the top 20k words
-    return tf.keras.Sequential(
-    [
-        tf.keras.Input(shape=(None,), dtype="int32"),
-        tf.keras.layers.Embedding(max_features, 128),
-        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
-        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-        tf.keras.layers.Dense(256, activation=None)
-    ])
-
-def get_model_FF():
-    max_features = 20000  # Only consider the top 20k words
-    return tf.keras.Sequential([
-#        tf.keras.Input(shape=(None,), dtype="int32"),
-#        tf.keras.layers.Embedding(max_features, 128),
-#        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
-#        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-        tf.keras.layers.Dense(256, input_dim=1, activation=None)
-    ])
+    inputs = tf.keras.Input(shape=(None,), dtype="int32")
+    # Embed each integer in a 128-dimensional vector
+    x = layers.Embedding(max_features, 128)(inputs)
+    # Add 2 bidirectional LSTMs
+    x = layers.Bidirectional(layers.LSTM(64, return_sequences=True))(x)
     
+    # Add a classifier
+#    outputs = layers.Bidirectional(layers.LSTM(64))(x)
+    x = layers.Bidirectional(layers.LSTM(64))(x)
+    outputs = layers.Dense(256, activation=None)(x)
+    model = tf.keras.Model(inputs, outputs)
+    return model
 
 def get_data_text():
-    max_features = 20000  # Only consider the top 20k words
+    max_features = 200000  # Only consider the top 20k words
     maxlen = 200  # Only consider the first 200 words of each movie review
     (x_train, y_train), (x_val, y_val) = tf.keras.datasets.imdb.load_data(
         num_words=max_features
@@ -75,59 +67,73 @@ format:
 x_train.shape: (10,): double
 y_train.shape: (10,): bool
 
-
 '''
 def get_data_numerical():
     maxlen = 20000
     x_train = np.random.rand(maxlen, 1)
-    for item in x_train:
-        item[0] = round(item[0], 3)
     y_train = np.zeros(x_train.shape)
     for id_r, item_r in enumerate(x_train):
-        if item_r[0] > 0.5:
-            y_train[id_r][0] = 1
-        else:
-            y_train[id_r][0] = 0
+        for id_c, item_c in enumerate(item_r):
+            if item_c > 0.5:
+                y_train[id_r][id_c] = 1
+            else:
+                y_train[id_r][id_c] = 0
     
-    x_val = np.random.rand(maxlen, 1)
-    for item in x_val:
-        item[0] = round(item[0], 3)
+    x_val = np.random.rand(int(maxlen/4), 1)
     y_val = np.zeros(x_val.shape)
     for id_r, item_r in enumerate(x_val):
-        if item_r[0] > 0.5:
-            y_val[id_r][0] = 1
-        else:
-            y_val[id_r][0] = 0
+        for id_c, item_c in enumerate(item_r):
+            if item_c > 0.5:
+                y_val[id_r][id_c] = 1
+            else:
+                y_val[id_r][id_c] = 0
                 
     return (x_train, y_train), (x_val, y_val)
     
     
 def main():
+#    model = get_model()
+#
+#    model = get_model(shape=(500,500,3))
     
-    _type = sys.argv[1]
-    
-    if _type == 'mnist':
-        model = get_model()
-        train_dataset, test_dataset = get_data()
-    elif _type == 'imdb':
-        model = get_model_LSTM()
-        (x_train, y_train), (x_val, y_val) = get_data_text()
-        test_dataset = (x_val, y_val)
-    elif _type == 'func':
-        model = get_model_FF()
-        (x_train, y_train), (x_val, y_val) = get_data_numerical()
-        test_dataset = (x_val, y_val)
-        
+    model = get_model_LSTM()
+
     # Compile the model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
-    if _type == 'mnist':
-        history = model.fit(train_dataset, epochs=1)
-    elif _type == 'imdb':
-        history = model.fit(x_train, y_train, batch_size=32, epochs=1)
-    elif _type == 'func':
-        history = model.fit(x_train, y_train, batch_size=32, epochs=1)
+#
+#    model2.compile(
+#        optimizer=tf.keras.optimizers.Adam(0.001),
+#        loss=tfa.losses.TripletSemiHardLoss())
+
+#    train_dataset, test_dataset = get_data()
+#    train_dataset, test_dataset = get_data(data_type='beans')
+
+    (x_train, y_train), (x_val, y_val) = get_data_text()
+    
+#    (x_train, y_train), (x_val, y_val) = get_data_numerical()
+    test_dataset = (x_val, y_val)
+    
+#    model.compile(tf.keras.optimizers.Adam(0.001), tfa.losses.TripletSemiHardLoss(), metrics=["accuracy"])
+    history = model.fit(x_train, y_train, batch_size=32, epochs=1)
+
+    
+    
+    # Train the network
+#    history = model.fit(
+#        train_dataset,
+#        epochs=1)
+#
+#    history2 = model2.fit(
+#        train_dataset2,
+#        epochs=1)
+
+
+    # Evaluate the network
+#    import pdb
+#    pdb.set_trace()
+#    print_dataset(test_dataset)
     
     results = model.predict(test_dataset)
     # Save test embeddings for visualization in projector
