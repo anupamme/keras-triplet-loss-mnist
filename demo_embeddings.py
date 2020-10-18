@@ -52,7 +52,7 @@ def get_model_FF():
 #        tf.keras.layers.Embedding(max_features, 128),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-        tf.keras.layers.Dense(256, input_dim=1, activation=None)
+        tf.keras.layers.Dense(256, input_dim=2, activation=None)
     ])
     
 
@@ -69,6 +69,19 @@ def get_data_text():
     
     return (x_train, y_train), (x_val, y_val)
 
+
+def decide(val):
+    if pow(val, 2) < 0.25 or pow(val, 2) > 0.75:
+        return 1
+    else:
+        return 0
+    
+def decide_two(val1, val2):
+    if (pow(val1, 2) + pow(val2, 2)) < 0.25 or (pow(val1, 2) + pow(val2, 2)) > 0.75:
+        return 1
+    else:
+        return 0
+
 '''
 format: 
 (x_train, y_train), (x_val, y_val)
@@ -84,23 +97,37 @@ def get_data_numerical():
         item[0] = round(item[0], 3)
     y_train = np.zeros(x_train.shape)
     for id_r, item_r in enumerate(x_train):
-        if item_r[0] > 0.5:
-            y_train[id_r][0] = 1
-        else:
-            y_train[id_r][0] = 0
+        y_train[id_r][0] = decide(item_r[0])
     
     x_val = np.random.rand(maxlen, 1)
     for item in x_val:
         item[0] = round(item[0], 3)
     y_val = np.zeros(x_val.shape)
     for id_r, item_r in enumerate(x_val):
-        if item_r[0] > 0.5:
-            y_val[id_r][0] = 1
-        else:
-            y_val[id_r][0] = 0
+        y_val[id_r][0] = decide(item_r[0])
                 
     return (x_train, y_train), (x_val, y_val)
     
+def get_data_numerical_two():
+    maxlen = 20000
+    x_train = np.random.rand(maxlen, 2)
+    for item in x_train:
+        item[0] = round(item[0], 3)
+        item[1] = round(item[1], 3)
+        
+    y_train = np.zeros((maxlen, 1))
+    for id_r, item_r in enumerate(x_train):
+        y_train[id_r][0] = decide_two(item_r[0], item_r[1])
+    
+    x_val = np.random.rand(maxlen, 2)
+    for item in x_val:
+        item[0] = round(item[0], 3)
+        item[1] = round(item[1], 3)
+    y_val = np.zeros((maxlen, 1))
+    for id_r, item_r in enumerate(x_val):
+        y_val[id_r][0] = decide_two(item_r[0], item_r[1])
+                
+    return (x_train, y_train), (x_val, y_val)    
     
 def main():
     
@@ -115,21 +142,25 @@ def main():
         test_dataset = (x_val, y_val)
     elif _type == 'func':
         model = get_model_FF()
-        (x_train, y_train), (x_val, y_val) = get_data_numerical()
+        (x_train, y_train), (x_val, y_val) = get_data_numerical_two()
         test_dataset = (x_val, y_val)
         
+    import pdb
+    pdb.set_trace()
     # Compile the model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
     if _type == 'mnist':
         history = model.fit(train_dataset, epochs=1)
+        results = model.predict(test_dataset)
     elif _type == 'imdb':
         history = model.fit(x_train, y_train, batch_size=32, epochs=1)
+        results = model.predict(test_dataset)
     elif _type == 'func':
-        history = model.fit(x_train, y_train, batch_size=32, epochs=1)
+        history = model.fit(x_train, y_train, batch_size=32, epochs=2)
+        results = model.predict(x_val)
     
-    results = model.predict(test_dataset)
     # Save test embeddings for visualization in projector
     np.savetxt("vecs.tsv", results, delimiter='\t')
 
