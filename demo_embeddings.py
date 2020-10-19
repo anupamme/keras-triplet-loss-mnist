@@ -1,6 +1,7 @@
 import io
 import numpy as np
 import sys
+import math
 
 import tensorflow as tf
 import tensorflow_addons as tfa
@@ -52,6 +53,7 @@ def get_model_FF():
 #        tf.keras.layers.Embedding(max_features, 128),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
+        tf.keras.layers.Dense(256, input_dim=2, activation=None),
         tf.keras.layers.Dense(256, input_dim=2, activation=None)
     ])
     
@@ -78,6 +80,12 @@ def decide(val):
     
 def decide_two(val1, val2):
     if (pow(val1, 2) + pow(val2, 2)) < 0.25 or (pow(val1, 2) + pow(val2, 2)) > 0.75:
+        return 1
+    else:
+        return 0
+    
+def decide_two_sign(val1, val2):
+    if math.sin(pow(val1, 2) + pow(val2, 2)) < -0.5 or math.sin(pow(val1, 2) + pow(val2, 2)) > 0.5:
         return 1
     else:
         return 0
@@ -117,7 +125,7 @@ def get_data_numerical_two():
         
     y_train = np.zeros((maxlen, 1))
     for id_r, item_r in enumerate(x_train):
-        y_train[id_r][0] = decide_two(item_r[0], item_r[1])
+        y_train[id_r][0] = decide_two_sign(item_r[0], item_r[1])
     
     x_val = np.random.rand(maxlen, 2)
     for item in x_val:
@@ -125,7 +133,7 @@ def get_data_numerical_two():
         item[1] = round(item[1], 3)
     y_val = np.zeros((maxlen, 1))
     for id_r, item_r in enumerate(x_val):
-        y_val[id_r][0] = decide_two(item_r[0], item_r[1])
+        y_val[id_r][0] = decide_two_sign(item_r[0], item_r[1])
                 
     return (x_train, y_train), (x_val, y_val)    
     
@@ -145,12 +153,13 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_numerical_two()
         test_dataset = (x_val, y_val)
         
-    import pdb
-    pdb.set_trace()
     # Compile the model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
+#    model.compile(
+#        optimizer=tf.keras.optimizers.Adam(0.001),
+#        loss=tf.keras.losses.BinaryCrossentropy())
     if _type == 'mnist':
         history = model.fit(train_dataset, epochs=1)
         results = model.predict(test_dataset)
