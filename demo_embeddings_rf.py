@@ -20,8 +20,7 @@ def get_data(data_type = 'mnist', data_kind='img'):
         train_dataset = train_dataset.map(_normalize_img)
         test_dataset = test_dataset.map(_normalize_img)
     return train_dataset, test_dataset
-   
-    
+
 def create_vocabulary_map(x_train, independent=False):
     assert len(x_train) > 0
     if len(x_train[0]) > 1:
@@ -36,7 +35,6 @@ def create_vocabulary_map(x_train, independent=False):
         num2id = {entry:i for i, entry in enumerate(vocabulary_set)}
         id2num = {i:entry for i, entry in enumerate(vocabulary_set)}
         return num2id, id2num
-
 
 def get_model(shape=(28,28,1)):
     return tf.keras.Sequential([
@@ -65,14 +63,13 @@ def get_model_LSTM():
 def get_model_FF():
     max_features = 20000  # Only consider the top 20k words
     return tf.keras.Sequential([
-#        tf.keras.Input(shape=(None,), dtype="int32"),
-        tf.keras.layers.Embedding(max_features, 128),
+#        tf.keras.Input(input_shape=(1,), dtype="int32"),
+        tf.keras.layers.Embedding(max_features, 128, input_length=2),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-        tf.keras.layers.Dense(256, activation=None)
+        tf.keras.layers.Dense(128, activation=None)
 #        tf.keras.layers.Dense(256, input_dim=2, activation=None)
     ])
-    
 
 def get_data_text():
     max_features = 20000  # Only consider the top 20k words
@@ -86,7 +83,6 @@ def get_data_text():
     x_val = tf.keras.preprocessing.sequence.pad_sequences(x_val, maxlen=maxlen)
     
     return (x_train, y_train), (x_val, y_val)
-
 
 def decide(val):
     if pow(val, 2) < 0.25 or pow(val, 2) > 0.75:
@@ -182,10 +178,10 @@ def get_data_numerical_meta(input_dim, decider_fn, maxlen=20000, rounding_limit=
 
 
 def convert_to_vocab(data_arr, mul_factor=10000):
-    dest = np.empty_like(data_arr)
+    dest = np.empty_like(data_arr, dtype=int)
     for id_r, item_r in enumerate(data_arr):
         for id_c, item_c in enumerate(item_r):
-            dest[id_r][id_c] = item_c * mul_factor
+            dest[id_r][id_c] = int(item_c * mul_factor)
     return dest
     
 def main():
@@ -204,7 +200,8 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(2, decide_var)
         x_train = convert_to_vocab(x_train)
         x_val = convert_to_vocab(x_val)
-        
+        import pdb
+        pdb.set_trace()
         test_dataset = (x_val, y_val)
     
     # Compile the model
@@ -237,9 +234,42 @@ def main():
     except:
         pass
     
-def print_dataset(ds):
-    for example in ds.take(1):
-        image, label = example[0], example[1]
+def visualise_dataset(outputs_val):
+    np.random.seed(1)
+    
+
+    # Learn UMAP reduction on the reconstructed space
+    reconstuction_umap = reducer.fit_transform(np.transpose(outputs_val))
+    # Plot UMAP visualization of the reconstructed space
+    plt.figure(figsize=(20, 10))
+    plt.scatter(reconstuction_umap[:, 0], reconstuction_umap[:, 1], c=[sns.color_palette()[1] ])
+    plt.gca().set_aspect('equal', 'datalim')
+    plt.title('UMAP projection of the Reconstruction space', fontsize=fontsize);
+    plt.show()
+
+    print('V5: A 2D UMAP reduction of the original space annotated with the best condensed UMAP cluster assignment.')
+    # Plot UMAP visualization of the original space and cluster assignments
+    plt.figure(figsize=(20, 10))
+    #     for label, embed, cluster_label in zip(labels, reduced_umap, cluster_labels):
+    plt.scatter(original_umap[:, 0], original_umap[:, 1], c=best_clustering, cmap=plt.cm.tab20)
+    #     plt.text(embed[0] - 0.02, embed[1] + 0.02, label, fontsize=14)
+    plt.colorbar(cmap=sns.color_palette(), boundaries=np.arange(best_num_clusters + 1)-0.5).set_ticks(np.arange(best_num_clusters))
+    plt.gca().set_aspect('equal', 'datalim')
+    plt.title('UMAP projection of the original space with cluster assignments learned from the reduced space', fontsize=fontsize);
+    plt.show()
+
+
+
+    print('V6: A 2D t-SNE reduction of the original space annotated with the best condensed UMAP cluster assignment.')
+    tsne_fit = TSNE(n_components=2).fit_transform(np.transpose(df.values))
+    plt.figure(figsize=(20, 10))
+    # for label, embed in zip(labels, tsne_fit):
+    plt.scatter(tsne_fit[:, 0], tsne_fit[:, 1], c=best_clustering, cmap=plt.cm.tab20)
+    #     plt.text(embed[0] - 0.02, embed[1] + 0.02, label, fontsize=14)
+    plt.colorbar(cmap=sns.color_palette(), boundaries=np.arange(best_num_clusters + 1)-0.5).set_ticks(np.arange(best_num_clusters))
+    plt.gca().set_aspect('equal', 'datalim')
+    plt.title('T-SNE projection of the Input space', fontsize=fontsize);
+    plt.show()
         
 
 if __name__ == "__main__":
