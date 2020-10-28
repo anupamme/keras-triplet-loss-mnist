@@ -64,10 +64,11 @@ def get_model_FF():
     max_features = 20000  # Only consider the top 20k words
     return tf.keras.Sequential([
 #        tf.keras.Input(input_shape=(1,), dtype="int32"),
-        tf.keras.layers.Embedding(max_features, 128, input_length=2),
+#        tf.keras.layers.Embedding(max_features, 128, input_length=2),
+#        tf.keras.layers.Flatten(),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-        tf.keras.layers.Dense(128, activation=None)
+        tf.keras.layers.Dense(256, activation=None)
 #        tf.keras.layers.Dense(256, input_dim=2, activation=None)
     ])
 
@@ -183,6 +184,15 @@ def convert_to_vocab(data_arr, mul_factor=10000):
         for id_c, item_c in enumerate(item_r):
             dest[id_r][id_c] = int(item_c * mul_factor)
     return dest
+
+def filter_values(data_arr, global_list):
+    dest = np.empty_like(data_arr, dtype=int)
+    for id_r, item_r in enumerate(data_arr):
+        for id_c, item_c in enumerate(item_r):
+            if item_c in global_list:
+                dest[id_r][id_c] = item_c
+            else:
+                dest[id_r][id_c] = 'NAN'
     
 def main():
     
@@ -200,14 +210,17 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(2, decide_var)
         x_train = convert_to_vocab(x_train)
         x_val = convert_to_vocab(x_val)
-        import pdb
-        pdb.set_trace()
+        x_train_unique = set(x_train.flatten())
+        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
     
     # Compile the model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
+#    model.compile(
+#        optimizer=tf.keras.optimizers.Adam(0.001),
+#        loss=tf.keras.losses.BinaryCrossentropy())
     if _type == 'mnist':
         history = model.fit(train_dataset, epochs=1)
         results = model.predict(test_dataset)
@@ -215,10 +228,12 @@ def main():
         history = model.fit(x_train, y_train, batch_size=32, epochs=1)
         results = model.predict(test_dataset)
     elif _type == 'func':
-        history = model.fit(x_train, y_train, batch_size=32, epochs=2)
+        history = model.fit(x_train, y_train, batch_size=32, epochs=8)
         results = model.predict(x_val)
-    
+        
     # Save test embeddings for visualization in projector
+    test_loss = model.evaluate(x_val, y_val)
+    print('test loss: ' + str(test_loss))
     np.savetxt("vecs.tsv", results, delimiter='\t')
 
 #    out_m = io.open('meta.tsv', 'w', encoding='utf-8')
