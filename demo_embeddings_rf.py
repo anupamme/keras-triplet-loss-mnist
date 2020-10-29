@@ -208,10 +208,10 @@ def main():
     elif _type == 'func':
         model = get_model_FF()
         (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(2, decide_var)
-        x_train = convert_to_vocab(x_train)
-        x_val = convert_to_vocab(x_val)
-        x_train_unique = set(x_train.flatten())
-        x_val_unique = set(x_val.flatten())
+#        x_train = convert_to_vocab(x_train)
+#        x_val = convert_to_vocab(x_val)
+#        x_train_unique = set(x_train.flatten())
+#        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
     
     # Compile the model
