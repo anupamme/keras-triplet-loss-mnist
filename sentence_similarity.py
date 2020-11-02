@@ -340,7 +340,7 @@ test_data = BertSemanticDataGenerator(
     shuffle=False,
 )
 model.evaluate(test_data, verbose=1)
-
+model.save('/mnt')
 """
 ## Inference on custom sentences
 """

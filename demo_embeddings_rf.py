@@ -49,6 +49,17 @@ def get_model(shape=(28,28,1)):
         tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)) # L2 normalize embeddings,
     ])
 
+def get_model_LSTM_char():
+    max_features = 10  # Only consider the 12 words
+    return tf.keras.Sequential(
+    [
+        tf.keras.Input(shape=(1,), dtype="int32"),
+        tf.keras.layers.Embedding(max_features, 128),
+        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
+        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
+        tf.keras.layers.Dense(256, activation=None)
+    ])
+
 def get_model_LSTM():
     max_features = 20000  # Only consider the top 20k words
     return tf.keras.Sequential(
@@ -152,8 +163,18 @@ def decide_var(val):
     if sq_sum < 0.25 or sq_sum > 0.75:
         return 1
     else:
-        return 0 
+        return 0
 
+'''
+return type: 
+
+x_train: numpy array (maxlen, input_dim)
+x_train[0] = array([0.4843, 0.3107])
+
+what we want instead:
+x_train[0] = array([4, 8, 4, 3], [3, 1, 0, 7])
+y_train[1] = array()
+'''    
 def get_data_numerical_meta(input_dim, decider_fn, maxlen=20000, rounding_limit=4):
     x_train = np.random.rand(maxlen, input_dim)
     x_val = np.random.rand(maxlen, input_dim)
@@ -177,23 +198,24 @@ def get_data_numerical_meta(input_dim, decider_fn, maxlen=20000, rounding_limit=
     
     return (x_train, y_train), (x_val, y_val)
 
+def convert_int_to_array(int_val):
+    arr = []
+    while int_val > 0:
+        arr.append(int_val%10)
+        int_val = int(int_val / 10)
+    arr.reverse()
+    return arr
 
-def convert_to_vocab(data_arr, mul_factor=10000):
-    dest = np.empty_like(data_arr, dtype=int)
+def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
+    dest = np.empty_like(data_arr, dtype=list)
     for id_r, item_r in enumerate(data_arr):
         for id_c, item_c in enumerate(item_r):
-            dest[id_r][id_c] = int(item_c * mul_factor)
+            if int_to_char:
+                dest[id_r][id_c] = convert_int_to_array(int(item_c * mul_factor))
+            else:
+                dest[id_r][id_c] = int(item_c * mul_factor)
     return dest
 
-def filter_values(data_arr, global_list):
-    dest = np.empty_like(data_arr, dtype=int)
-    for id_r, item_r in enumerate(data_arr):
-        for id_c, item_c in enumerate(item_r):
-            if item_c in global_list:
-                dest[id_r][id_c] = item_c
-            else:
-                dest[id_r][id_c] = 'NAN'
-    
 def main():
     
     _type = sys.argv[1]
@@ -206,14 +228,15 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_text()
         test_dataset = (x_val, y_val)
     elif _type == 'func':
-        model = get_model_FF()
+        model = get_model_LSTM_char()
         (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(2, decide_var)
-#        x_train = convert_to_vocab(x_train)
-#        x_val = convert_to_vocab(x_val)
+        x_train = convert_to_vocab(x_train, int_to_char=True)
+        x_val = convert_to_vocab(x_val, int_to_char=True)
 #        x_train_unique = set(x_train.flatten())
 #        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
-    
+    import pdb
+    pdb.set_trace()
     # Compile the model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
