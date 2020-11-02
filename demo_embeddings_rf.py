@@ -55,8 +55,7 @@ def get_model_LSTM_char():
     [
         tf.keras.Input(shape=(1,), dtype="int32"),
         tf.keras.layers.Embedding(max_features, 128),
-        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
-        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
+        tf.keras.layers.LSTM(64, return_sequences=True),
         tf.keras.layers.Dense(256, activation=None)
     ])
 
@@ -235,8 +234,6 @@ def main():
 #        x_train_unique = set(x_train.flatten())
 #        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
-    import pdb
-    pdb.set_trace()
     # Compile the model
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
