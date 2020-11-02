@@ -203,7 +203,7 @@ def convert_int_to_array(int_val):
         arr.append(int_val%10)
         int_val = int(int_val / 10)
     arr.reverse()
-    return arr
+    return np.asarray(arr)
 
 def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
     dest = np.empty_like(data_arr, dtype=list)
@@ -228,13 +228,15 @@ def main():
         test_dataset = (x_val, y_val)
     elif _type == 'func':
         model = get_model_LSTM_char()
-        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(2, decide_var)
+        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(1, decide_var)
         x_train = convert_to_vocab(x_train, int_to_char=True)
         x_val = convert_to_vocab(x_val, int_to_char=True)
 #        x_train_unique = set(x_train.flatten())
 #        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
     # Compile the model
+    import pdb
+    pdb.set_trace()
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
