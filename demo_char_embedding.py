@@ -10,8 +10,8 @@ from keras.layers import Input, Embedding, Activation, Flatten, Dense
 from keras.layers import Conv1D, MaxPooling1D, Dropout
 from keras.models import Model
 
-train_data_source = './data/ag_news_csv/train.csv'
-test_data_source = './data/ag_news_csv/test.csv'
+train_data_source = '/mnt/data/ag_news_csv/train.csv'
+test_data_source = '/mnt/data/ag_news_csv/test.csv'
 
 train_df = pd.read_csv(train_data_source, header=None)
 test_df = pd.read_csv(test_data_source, header=None)
@@ -131,7 +131,8 @@ predictions = Dense(num_of_classes, activation='softmax')(x)
 model = Model(inputs=inputs, outputs=predictions)
 model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])  # Adam, categorical_crossentropy
 model.summary()
-
+import pdb
+pdb.set_trace()
 # # 1000 training samples and 100 testing samples
 # indices = np.arange(train_data.shape[0])
 # np.random.shuffle(indices)

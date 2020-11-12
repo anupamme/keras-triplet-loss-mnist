@@ -49,15 +49,38 @@ def get_model(shape=(28,28,1)):
         tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)) # L2 normalize embeddings,
     ])
 
-def get_model_LSTM_char():
-    max_features = 10  # Only consider the 12 words
-    return tf.keras.Sequential(
-    [
-        tf.keras.Input(shape=(1,), dtype="int32"),
-        tf.keras.layers.Embedding(max_features, 128),
-        tf.keras.layers.LSTM(64, return_sequences=False),
-        tf.keras.layers.Dense(256, activation=None)
-    ])
+def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2):
+    embedding_weights = []  # (70, 69)
+    embedding_weights.append(np.zeros(vocab_size))  # (0, 69)
+    
+    vocab_count = 0
+    while vocab_count < vocab_size:
+        onehot = np.zeros(vocab_size)
+        onehot[vocab_count] = 1
+        embedding_weights.append(onehot)
+        vocab_count += 1
+
+    embedding_weights = np.array(embedding_weights)
+    embedding_layer = tf.keras.layers.Embedding(vocab_size + 1,
+                            vocab_size,
+                            input_length=input_size,
+                            weights=[embedding_weights])
+    inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')  # shape=(?, 1014)
+    # Embedding
+    x = embedding_layer(inputs)
+    x = tf.keras.layers.Flatten()(x)  # (None, 8704)
+
+    # Output Layer
+    predictions = tf.keras.layers.Dense(num_of_classes, activation=None)(x)
+    # Build model
+    return tf.keras.models.Model(inputs=inputs, outputs=predictions)
+#    return tf.keras.Sequential(
+#    [
+##        tf.keras.Input(shape=(1,), dtype="int32"),
+#        tf.keras.layers.Embedding(max_features, 128),
+#        tf.keras.layers.LSTM(64, return_sequences=False),
+#        tf.keras.layers.Dense(256, activation=None)
+#    ])
 
 def get_model_LSTM():
     max_features = 20000  # Only consider the top 20k words
@@ -218,7 +241,7 @@ def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
 def main():
     
     _type = sys.argv[1]
-    
+    input_size = 2
     if _type == 'mnist':
         model = get_model()
         train_dataset, test_dataset = get_data()
@@ -227,14 +250,16 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_text()
         test_dataset = (x_val, y_val)
     elif _type == 'func':
-        model = get_model_LSTM_char()
-        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(2, decide_var)
+        model = get_model_LSTM_char(10, input_size)
+        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(input_size, decide_var)
         x_train = convert_to_vocab(x_train, int_to_char=True)
         x_val = convert_to_vocab(x_val, int_to_char=True)
 #        x_train_unique = set(x_train.flatten())
 #        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
     # Compile the model
+    import pdb
+    pdb.set_trace()
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
