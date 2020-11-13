@@ -52,7 +52,6 @@ def get_model(shape=(28,28,1)):
 def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2):
     embedding_weights = []  # (70, 69)
     embedding_weights.append(np.zeros(vocab_size))  # (0, 69)
-    
     vocab_count = 0
     while vocab_count < vocab_size:
         onehot = np.zeros(vocab_size)
@@ -65,13 +64,19 @@ def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2):
                             vocab_size,
                             input_length=input_size,
                             weights=[embedding_weights])
-    inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')  # shape=(?, 1014)
+    inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')
+    
     # Embedding
-    x = embedding_layer(inputs)
-    x = tf.keras.layers.Flatten()(x)  # (None, 8704)
-
+    
+    x1 = embedding_layer(inputs)
+    x1 = tf.keras.layers.Flatten()(x1)  # (None, 8704)
+    
+    x2 = embedding_layer(inputs)
+    x2 = tf.keras.layers.Flatten()(x2)  # (None, 8704)
+    x3 = tf.concat([x1, x2], 1)
+#    x3 = x1
     # Output Layer
-    predictions = tf.keras.layers.Dense(num_of_classes, activation=None)(x)
+    predictions = tf.keras.layers.Dense(num_of_classes, activation=None)(x3)
     # Build model
     return tf.keras.models.Model(inputs=inputs, outputs=predictions)
 #    return tf.keras.Sequential(
@@ -226,6 +231,15 @@ def convert_int_to_array(int_val):
         arr.append(int_val%10)
         int_val = int(int_val / 10)
     arr.reverse()
+    _len = len(arr)
+    if _len == 0:
+        arr = [0,0,0,0]
+    elif _len == 1:
+        arr = [0, 0, 0] + arr
+    elif _len == 2:
+        arr = [0, 0] + arr
+    elif _len == 3:
+        arr = [0] + arr
     return np.asarray(arr)
 
 def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
@@ -236,6 +250,13 @@ def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
                 dest[id_r][id_c] = convert_int_to_array(int(item_c * mul_factor))
             else:
                 dest[id_r][id_c] = int(item_c * mul_factor)
+    return dest
+
+def concate_rows(data_arr):
+    dest = np.empty((data_arr.shape[0]), dtype=list)
+#    dest = np.empty_like(data_arr, dtype=int)
+    for id_r, item_r in enumerate(data_arr):
+        dest[id_r] = np.concatenate((item_r))
     return dest
 
 def main():
@@ -250,7 +271,7 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_text()
         test_dataset = (x_val, y_val)
     elif _type == 'func':
-        model = get_model_LSTM_char(10, input_size)
+        model = get_model_LSTM_char(10, 4)
         (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(input_size, decide_var)
         x_train = convert_to_vocab(x_train, int_to_char=True)
         x_val = convert_to_vocab(x_val, int_to_char=True)
@@ -258,8 +279,6 @@ def main():
 #        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
     # Compile the model
-    import pdb
-    pdb.set_trace()
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
