@@ -49,7 +49,7 @@ def get_model(shape=(28,28,1)):
         tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)) # L2 normalize embeddings,
     ])
 
-def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2):
+def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_inputs=False):
     embedding_weights = []  # (70, 69)
     embedding_weights.append(np.zeros(vocab_size))  # (0, 69)
     vocab_count = 0
@@ -67,14 +67,15 @@ def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2):
     inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')
     
     # Embedding
-    
     x1 = embedding_layer(inputs)
     x1 = tf.keras.layers.Flatten()(x1)  # (None, 8704)
     
-    x2 = embedding_layer(inputs)
-    x2 = tf.keras.layers.Flatten()(x2)  # (None, 8704)
-    x3 = tf.concat([x1, x2], 1)
-#    x3 = x1
+    if add_multiple_inputs:
+        x2 = embedding_layer(inputs)
+        x2 = tf.keras.layers.Flatten()(x2)  # (None, 8704)
+        x3 = tf.concat([x1, x2], 1)
+    else:
+        x3 = x1
     # Output Layer
     predictions = tf.keras.layers.Dense(num_of_classes, activation=None)(x3)
     # Build model
@@ -271,14 +272,19 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_text()
         test_dataset = (x_val, y_val)
     elif _type == 'func':
-        model = get_model_LSTM_char(10, 4)
+        model = get_model_LSTM_char(10, 4, add_multiple_inputs=True)
         (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(input_size, decide_var)
+#        x_train = concate_rows(convert_to_vocab(x_train, int_to_char=True))
+#        x_val = concate_rows(convert_to_vocab(x_val, int_to_char=True))
         x_train = convert_to_vocab(x_train, int_to_char=True)
         x_val = convert_to_vocab(x_val, int_to_char=True)
 #        x_train_unique = set(x_train.flatten())
 #        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
     # Compile the model
+    import pdb
+    pdb.set_trace()
+    print(model.summary())
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
