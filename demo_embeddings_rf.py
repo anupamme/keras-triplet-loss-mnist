@@ -50,8 +50,8 @@ def get_model(shape=(28,28,1)):
     ])
 
 def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_inputs=False):
-    embedding_weights = []  # (70, 69)
-    embedding_weights.append(np.zeros(vocab_size))  # (0, 69)
+    embedding_weights = []
+    embedding_weights.append(np.zeros(vocab_size))
     vocab_count = 0
     while vocab_count < vocab_size:
         onehot = np.zeros(vocab_size)
@@ -67,12 +67,14 @@ def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_i
     inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')
     
     # Embedding
-    x1 = embedding_layer(inputs)
-    x1 = tf.keras.layers.Flatten()(x1)  # (None, 8704)
+    input_1, input_2 = tf.split(inputs, 2)
+    
+    x1 = embedding_layer(input_1)
+    x1 = tf.keras.layers.Flatten()(x1)
     
     if add_multiple_inputs:
-        x2 = embedding_layer(inputs)
-        x2 = tf.keras.layers.Flatten()(x2)  # (None, 8704)
+        x2 = embedding_layer(input_2)
+        x2 = tf.keras.layers.Flatten()(x2)
         x3 = tf.concat([x1, x2], 1)
     else:
         x3 = x1
@@ -80,13 +82,6 @@ def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_i
     predictions = tf.keras.layers.Dense(num_of_classes, activation=None)(x3)
     # Build model
     return tf.keras.models.Model(inputs=inputs, outputs=predictions)
-#    return tf.keras.Sequential(
-#    [
-##        tf.keras.Input(shape=(1,), dtype="int32"),
-#        tf.keras.layers.Embedding(max_features, 128),
-#        tf.keras.layers.LSTM(64, return_sequences=False),
-#        tf.keras.layers.Dense(256, activation=None)
-#    ])
 
 def get_model_LSTM():
     max_features = 20000  # Only consider the top 20k words
@@ -248,7 +243,7 @@ def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
     for id_r, item_r in enumerate(data_arr):
         for id_c, item_c in enumerate(item_r):
             if int_to_char:
-                dest[id_r][id_c] = convert_int_to_array(int(item_c * mul_factor))
+                dest[id_r][id_c] = tf.convert_to_tensor(convert_int_to_array(int(item_c * mul_factor)))
             else:
                 dest[id_r][id_c] = int(item_c * mul_factor)
     return dest
@@ -257,7 +252,7 @@ def concate_rows(data_arr):
     dest = np.empty((data_arr.shape[0]), dtype=list)
 #    dest = np.empty_like(data_arr, dtype=int)
     for id_r, item_r in enumerate(data_arr):
-        dest[id_r] = np.concatenate((item_r))
+        dest[id_r] = tf.convert_to_tensor(np.concatenate((item_r)))
     return dest
 
 def main():
@@ -282,8 +277,6 @@ def main():
 #        x_val_unique = set(x_val.flatten())
         test_dataset = (x_val, y_val)
     # Compile the model
-    import pdb
-    pdb.set_trace()
     print(model.summary())
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
