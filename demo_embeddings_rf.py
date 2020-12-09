@@ -276,8 +276,6 @@ def main():
         test_dataset = (x_val, y_val)
     # Compile the model
     print(model.summary())
-    import pdb
-    pdb.set_trace()
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
