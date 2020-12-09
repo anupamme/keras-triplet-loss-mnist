@@ -89,12 +89,13 @@ def get_model_LSTM(vocab_size):
         tf.keras.layers.Dense(256, activation=None)
     ])
 
-def get_model_FF(vocab_size, embedding_dim):
+def get_model_FF():
+    max_features = 20000  # Only consider the top 20k words
     return tf.keras.Sequential([
 #        tf.keras.Input(input_shape=(1,), dtype="int32"),
-        tf.keras.layers.Embedding(vocab_size, embedding_dim),
-#        tf.keras.layers.Flatten(),
-        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
+        tf.keras.layers.Embedding(max_features, 128, input_length=2),
+        tf.keras.layers.Flatten(),
+#        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
         tf.keras.layers.Dense(256, activation=None)
 #        tf.keras.layers.Dense(256, input_dim=2, activation=None)
@@ -128,10 +129,12 @@ def decide_two(val1, val2):
 '''
 format: 
 (x_train, y_train), (x_val, y_val)
-x_train.shape: (10,): double
-y_train.shape: (10,): bool
+x_train.shape: (10, 4):
+y_train.shape: (10,):
+x_val.shape: (10, 4):
+y_val.shape: (10,):
 
-
+XXX: dummy function to test the new format.
 '''
 def get_data_numerical():
     maxlen = 20000
@@ -235,14 +238,11 @@ def convert_to_vocab_zero(data_arr, mul_factor=10000, int_to_char=False):
             dest[id_r] = int(item_r * mul_factor)
     return dest
 
-def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
-    dest = np.empty_like(data_arr, dtype=list)
+def convert_to_vocab(data_arr, mul_factor=10000):
+    dest = np.empty_like(data_arr, dtype=int)
     for id_r, item_r in enumerate(data_arr):
         for id_c, item_c in enumerate(item_r):
-            if int_to_char:
-                dest[id_r][id_c] = tf.convert_to_tensor(convert_int_to_array(int(item_c * mul_factor)))
-            else:
-                dest[id_r][id_c] = int(item_c * mul_factor)
+            dest[id_r][id_c] = int(item_c * mul_factor)
     return dest
 
 def concate_rows(data_arr):
@@ -255,7 +255,7 @@ def concate_rows(data_arr):
 def main():
     
     _type = sys.argv[1]
-    input_size = 1
+    input_size = 2
     if _type == 'mnist':
         model = get_model()
         train_dataset, test_dataset = get_data()
@@ -266,18 +266,18 @@ def main():
     elif _type == 'func':
 #        model = get_model_LSTM(10)
         model = get_model_LSTM_char(10, 4, add_multiple_inputs=False)
-#        model = get_model_FF(10, 128)
         (x_train, y_train), (x_val, y_val) = get_data_numerical()
-#        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(input_size, decide_var)
-#        x_train = concate_rows(convert_to_vocab(x_train, int_to_char=True))
-#        x_val = concate_rows(convert_to_vocab(x_val, int_to_char=True))
-#        x_train = convert_to_vocab_zero(x_train, int_to_char=True)
-#        x_val = convert_to_vocab_zero(x_val, int_to_char=True)
-#        x_train_unique = set(x_train.flatten())
-#        x_val_unique = set(x_val.flatten())
+        test_dataset = (x_val, y_val)
+    elif _type == 'func_star':
+        model = get_model_FF()
+        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(input_size, decide_var)
+        x_train = convert_to_vocab(x_train)
+        x_val = convert_to_vocab(x_val)
         test_dataset = (x_val, y_val)
     # Compile the model
     print(model.summary())
+    import pdb
+    pdb.set_trace()
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
@@ -290,7 +290,7 @@ def main():
     elif _type == 'imdb':
         history = model.fit(x_train, y_train, batch_size=32, epochs=1)
         results = model.predict(test_dataset)
-    elif _type == 'func':
+    elif _type == 'func' or _type == 'func_star':
         history = model.fit(x_train, y_train, batch_size=32, epochs=8)
         results = model.predict(x_val)
         
