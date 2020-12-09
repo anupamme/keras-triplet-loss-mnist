@@ -69,7 +69,7 @@ def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_i
     if add_multiple_inputs:
         input_1, input_2 = tf.split(inputs, 2)
         x1 = embedding_layer(input_1)
-        x1 = tf.keras.layers.Flatten()(x1)
+        x2 = tf.keras.layers.Flatten()(x1)
     else:
         x1 = embedding_layer(inputs)
         x2 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (x1)
