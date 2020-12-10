@@ -68,16 +68,22 @@ def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_i
     
     if add_multiple_inputs:
         input_1, input_2 = tf.split(inputs, 2)
-        x1 = embedding_layer(input_1)
-        x2 = tf.keras.layers.Flatten()(x1)
+        # x1 = embedding_layer(input_1)
+        # x2 = tf.keras.layers.Flatten()(x1)
+        embedding1 = embedding_layer(input_1)
+        embedding2 = embedding_layer(input_2)
+        lstm_out1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding1)
+        lstm_out2 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding2)
+        predictions = tf.keras.layers.Dense(256, activation=None)(tf.concat([lstm_out1, lstm_out2], 0))
+        return tf.keras.models.Model(inputs=inputs, outputs=predictions)
     else:
-        x1 = embedding_layer(inputs)
-        x2 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (x1)
-    
-    predictions = tf.keras.layers.Dense(256, activation=None)(x2)
-    # Build model
-    return tf.keras.models.Model(inputs=inputs, outputs=predictions)
+        embedding = embedding_layer(inputs)
+        lstm_out = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding)
+        predictions = tf.keras.layers.Dense(256, activation=None)(lstm_out)
+        # Build model
+        return tf.keras.models.Model(inputs=inputs, outputs=predictions)
 
+    
 def get_model_LSTM(vocab_size):
     max_features = 20000  # Only consider the top 20k words
     return tf.keras.Sequential(
@@ -265,7 +271,7 @@ def main():
         test_dataset = (x_val, y_val)
     elif _type == 'func':
 #        model = get_model_LSTM(10)
-        model = get_model_LSTM_char(10, 4, add_multiple_inputs=False)
+        model = get_model_LSTM_char(10, 4, add_multiple_inputs=True)
         (x_train, y_train), (x_val, y_val) = get_data_numerical()
         test_dataset = (x_val, y_val)
     elif _type == 'func_star':
