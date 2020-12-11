@@ -67,7 +67,7 @@ def get_model_LSTM_char(vocab_size, input_size, num_vars, num_of_classes=2, add_
     inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')
     
     if add_multiple_inputs:
-        input_components = tf.split(inputs, num_vars)
+        input_components = tf.split(inputs, num_vars, axis=0)
         lstms = []
         for item in input_components:
             lstms.append(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding_layer(item)))
@@ -141,11 +141,11 @@ XXX: dummy function to test the new format.
 '''
 def get_data_numerical(num_var):
     maxlen = 20000
-    x_train = np.random.randint(10, size=(maxlen, 4, num_var))
+    x_train = np.random.randint(10, size=(maxlen, num_var, 4))
     
     y_train = np.random.randint(2, size=(maxlen))
     
-    x_val = np.random.randint(10, size=(maxlen, 4, num_var))
+    x_val = np.random.randint(10, size=(maxlen, num_var, 4))
     
     y_val = np.random.randint(2, size=(maxlen))
                 
