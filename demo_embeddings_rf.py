@@ -49,7 +49,7 @@ def get_model(shape=(28,28,1)):
         tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)) # L2 normalize embeddings,
     ])
 
-def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_inputs=False):
+def get_model_LSTM_char(vocab_size, input_size, num_vars, num_of_classes=2, add_multiple_inputs=False):
     embedding_weights = []
     embedding_weights.append(np.zeros(vocab_size))
     vocab_count = 0
@@ -67,14 +67,11 @@ def get_model_LSTM_char(vocab_size, input_size, num_of_classes=2, add_multiple_i
     inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')
     
     if add_multiple_inputs:
-        input_1, input_2 = tf.split(inputs, 2)
-        # x1 = embedding_layer(input_1)
-        # x2 = tf.keras.layers.Flatten()(x1)
-        embedding1 = embedding_layer(input_1)
-        embedding2 = embedding_layer(input_2)
-        lstm_out1 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding1)
-        lstm_out2 = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding2)
-        predictions = tf.keras.layers.Dense(256, activation=None)(tf.concat([lstm_out1, lstm_out2], 0))
+        input_components = tf.split(inputs, num_vars)
+        lstms = []
+        for item in input_components:
+            lstms.append(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding_layer(item)))
+        predictions = tf.keras.layers.Dense(256, activation=None)(tf.concat(lstms, 0))
         return tf.keras.models.Model(inputs=inputs, outputs=predictions)
     else:
         embedding = embedding_layer(inputs)
@@ -142,13 +139,13 @@ y_val.shape: (10,):
 
 XXX: dummy function to test the new format.
 '''
-def get_data_numerical():
+def get_data_numerical(num_var):
     maxlen = 20000
-    x_train = np.random.randint(10, size=(maxlen, 4))
+    x_train = np.random.randint(10, size=(maxlen, 4, num_var))
     
     y_train = np.random.randint(2, size=(maxlen))
     
-    x_val = np.random.randint(10, size=(maxlen, 4))
+    x_val = np.random.randint(10, size=(maxlen, 4, num_var))
     
     y_val = np.random.randint(2, size=(maxlen))
                 
@@ -271,8 +268,9 @@ def main():
         test_dataset = (x_val, y_val)
     elif _type == 'func':
 #        model = get_model_LSTM(10)
-        model = get_model_LSTM_char(10, 4, add_multiple_inputs=True)
-        (x_train, y_train), (x_val, y_val) = get_data_numerical()
+        num_var = 2
+        model = get_model_LSTM_char(10, 4, num_var, add_multiple_inputs=True)
+        (x_train, y_train), (x_val, y_val) = get_data_numerical(num_var)
         test_dataset = (x_val, y_val)
     elif _type == 'func_star':
         model = get_model_FF()
@@ -282,6 +280,8 @@ def main():
         test_dataset = (x_val, y_val)
     # Compile the model
     print(model.summary())
+    import pdb
+    pdb.set_trace()
     model.compile(
         optimizer=tf.keras.optimizers.Adam(0.001),
         loss=tfa.losses.TripletSemiHardLoss())
