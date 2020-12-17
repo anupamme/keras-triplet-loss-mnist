@@ -255,6 +255,24 @@ def concate_rows(data_arr):
         dest[id_r] = tf.convert_to_tensor(np.concatenate((item_r)))
     return dest
 
+def loss(model, x, y, training, loss_object):
+    # training=training is needed only if there are layers with different
+    # behavior during training versus inference (e.g. Dropout).
+    y_ = model(x, training=training)
+    return loss_object(y_true=y, y_pred=y_)
+
+def grad(model, inputs, targets, loss_object):
+    with tf.GradientTape() as tape:
+        loss_value = loss(model, inputs, targets, True, loss_object)
+    return loss_value, tape.gradient(loss_value, model.trainable_variables)
+
+def model_fit(model, x_train, y_train, loss_object, optimizer):
+    for idx, x in enumerate(x_train):
+        y = y_train[idx]
+        # Optimize the model
+        loss_value, grads = grad(model, x, y, loss_object)
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
 def main():
     
     _type = sys.argv[1]
@@ -278,11 +296,13 @@ def main():
         x_train = convert_to_vocab(x_train)
         x_val = convert_to_vocab(x_val)
         test_dataset = (x_val, y_val)
+    loss_obj = tfa.losses.TripletSemiHardLoss()
+    optimizer_obj = tf.keras.optimizers.Adam(0.001)
     # Compile the model
-    print(model.summary())
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(0.001),
-        loss=tfa.losses.TripletSemiHardLoss())
+#    print(model.summary())
+#    model.compile(
+#        optimizer=tf.keras.optimizers.Adam(0.001),
+#        loss=tfa.losses.TripletSemiHardLoss())
 #    model.compile(
 #        optimizer=tf.keras.optimizers.Adam(0.001),
 #        loss=tf.keras.losses.BinaryCrossentropy())
@@ -293,7 +313,8 @@ def main():
         history = model.fit(x_train, y_train, batch_size=32, epochs=1)
         results = model.predict(test_dataset)
     elif _type == 'func' or _type == 'func_star':
-        history = model.fit(x_train, y_train, batch_size=32, epochs=8)
+        model_fit(model, x_train, y_train, loss_obj, optimizer_obj)
+#        history = model.fit(x_train, y_train, batch_size=32, epochs=8)
         results = model.predict(x_val)
         
     # Save test embeddings for visualization in projector
