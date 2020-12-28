@@ -51,7 +51,8 @@ def split_input_target(chunk):
     input_text = chunk[:-1]
     target_text = chunk[1:]
     return input_text, target_text
-
+import pdb
+pdb.set_trace()
 dataset = sequences.map(split_input_target)
 
 for input_example, target_example in  dataset.take(1):
@@ -96,7 +97,8 @@ def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
         tf.keras.layers.Dense(vocab_size)
     ])
     return model
-
+import pdb
+pdb.set_trace()
 model = build_model(
     vocab_size=len(vocab),
     embedding_dim=embedding_dim,

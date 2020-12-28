@@ -3,15 +3,16 @@
 # ========================Load data=========================
 import numpy as np
 import pandas as pd
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
+import tensorflow as tf
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-from keras.layers import Input, Embedding, Activation, Flatten, Dense
-from keras.layers import Conv1D, MaxPooling1D, Dropout
-from keras.models import Model
+from tensorflow.keras.layers import Input, Embedding, Activation, Flatten, Dense
+from tensorflow.keras.layers import Conv1D, MaxPooling1D, Dropout
+from tensorflow.keras.models import Model
 
-train_data_source = './data/ag_news_csv/train.csv'
-test_data_source = './data/ag_news_csv/test.csv'
+train_data_source = '/mnt/data/ag_news_csv/train.csv'
+test_data_source = '/mnt/data/ag_news_csv/test.csv'
 
 train_df = pd.read_csv(train_data_source, header=None)
 test_df = pd.read_csv(test_data_source, header=None)
@@ -102,7 +103,8 @@ for char, i in tk.word_index.items():  # from index 1 to 69
 
 embedding_weights = np.array(embedding_weights)
 print('Load')
-
+import pdb
+pdb.set_trace()
 # Embedding layer Initialization
 embedding_layer = Embedding(vocab_size + 1,
                             embedding_size,
@@ -131,7 +133,8 @@ predictions = Dense(num_of_classes, activation='softmax')(x)
 model = Model(inputs=inputs, outputs=predictions)
 model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])  # Adam, categorical_crossentropy
 model.summary()
-
+import pdb
+pdb.set_trace()
 # # 1000 training samples and 100 testing samples
 # indices = np.arange(train_data.shape[0])
 # np.random.shuffle(indices)
