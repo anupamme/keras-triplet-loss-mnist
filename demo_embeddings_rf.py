@@ -49,22 +49,44 @@ def get_model(shape=(28,28,1)):
         tf.keras.layers.Lambda(lambda x: tf.math.l2_normalize(x, axis=1)) # L2 normalize embeddings,
     ])
 
-def get_model_LSTM_char():
-    max_features = 10  # Only consider the 12 words
-    return tf.keras.Sequential(
-    [
-        tf.keras.Input(shape=(1,), dtype="int32"),
-        tf.keras.layers.Embedding(max_features, 128),
-        tf.keras.layers.LSTM(64, return_sequences=False),
-        tf.keras.layers.Dense(256, activation=None)
-    ])
+def get_model_LSTM_char(vocab_size, input_size, num_vars, num_of_classes=2, add_multiple_inputs=False):
+    embedding_weights = []
+    embedding_weights.append(np.zeros(vocab_size))
+    vocab_count = 0
+    while vocab_count < vocab_size:
+        onehot = np.zeros(vocab_size)
+        onehot[vocab_count] = 1
+        embedding_weights.append(onehot)
+        vocab_count += 1
 
-def get_model_LSTM():
+    embedding_weights = np.array(embedding_weights)
+    embedding_layer = tf.keras.layers.Embedding(vocab_size + 1,
+                            vocab_size,
+                            input_length=input_size,
+                            weights=[embedding_weights])
+    inputs = tf.keras.layers.Input(shape=(input_size,), name='input', dtype='int64')
+    
+    if add_multiple_inputs:
+        input_components = tf.split(inputs, num_vars, axis=0)
+        lstms = []
+        for item in input_components:
+            lstms.append(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding_layer(item)))
+        predictions = tf.keras.layers.Dense(256, activation=None)(tf.concat(lstms, 0))
+        return tf.keras.models.Model(inputs=inputs, outputs=predictions)
+    else:
+        embedding = embedding_layer(inputs)
+        lstm_out = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)) (embedding)
+        predictions = tf.keras.layers.Dense(256, activation=None)(lstm_out)
+        # Build model
+        return tf.keras.models.Model(inputs=inputs, outputs=predictions)
+
+    
+def get_model_LSTM(vocab_size):
     max_features = 20000  # Only consider the top 20k words
     return tf.keras.Sequential(
     [
         tf.keras.Input(shape=(None,), dtype="int32"),
-        tf.keras.layers.Embedding(max_features, 128),
+        tf.keras.layers.Embedding(vocab_size, 128),
         tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
         tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
         tf.keras.layers.Dense(256, activation=None)
@@ -74,8 +96,8 @@ def get_model_FF():
     max_features = 20000  # Only consider the top 20k words
     return tf.keras.Sequential([
 #        tf.keras.Input(input_shape=(1,), dtype="int32"),
-#        tf.keras.layers.Embedding(max_features, 128, input_length=2),
-#        tf.keras.layers.Flatten(),
+        tf.keras.layers.Embedding(max_features, 128, input_length=2),
+        tf.keras.layers.Flatten(),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
 #        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
         tf.keras.layers.Dense(256, activation=None)
@@ -110,26 +132,22 @@ def decide_two(val1, val2):
 '''
 format: 
 (x_train, y_train), (x_val, y_val)
-x_train.shape: (10,): double
-y_train.shape: (10,): bool
+x_train.shape: (10, 4):
+y_train.shape: (10,):
+x_val.shape: (10, 4):
+y_val.shape: (10,):
 
-
+XXX: dummy function to test the new format.
 '''
-def get_data_numerical():
+def get_data_numerical(num_var):
     maxlen = 20000
-    x_train = np.random.rand(maxlen, 1)
-    for item in x_train:
-        item[0] = round(item[0], 3)
-    y_train = np.zeros(x_train.shape)
-    for id_r, item_r in enumerate(x_train):
-        y_train[id_r][0] = decide(item_r[0])
+    x_train = np.random.randint(10, size=(maxlen, num_var, 4))
     
-    x_val = np.random.rand(maxlen, 1)
-    for item in x_val:
-        item[0] = round(item[0], 3)
-    y_val = np.zeros(x_val.shape)
-    for id_r, item_r in enumerate(x_val):
-        y_val[id_r][0] = decide(item_r[0])
+    y_train = np.random.randint(2, size=(maxlen))
+    
+    x_val = np.random.randint(10, size=(maxlen, num_var, 4))
+    
+    y_val = np.random.randint(2, size=(maxlen))
                 
     return (x_train, y_train), (x_val, y_val)
     
@@ -203,22 +221,62 @@ def convert_int_to_array(int_val):
         arr.append(int_val%10)
         int_val = int(int_val / 10)
     arr.reverse()
+    _len = len(arr)
+    if _len == 0:
+        arr = [0,0,0,0]
+    elif _len == 1:
+        arr = [0, 0, 0] + arr
+    elif _len == 2:
+        arr = [0, 0] + arr
+    elif _len == 3:
+        arr = [0] + arr
     return np.asarray(arr)
 
-def convert_to_vocab(data_arr, mul_factor=10000, int_to_char=False):
+def convert_to_vocab_zero(data_arr, mul_factor=10000, int_to_char=False):
     dest = np.empty_like(data_arr, dtype=list)
     for id_r, item_r in enumerate(data_arr):
-        for id_c, item_c in enumerate(item_r):
-            if int_to_char:
-                dest[id_r][id_c] = convert_int_to_array(int(item_c * mul_factor))
-            else:
-                dest[id_r][id_c] = int(item_c * mul_factor)
+        if int_to_char:
+            dest[id_r] = convert_int_to_array(int(item_r * mul_factor))
+        else:
+            dest[id_r] = int(item_r * mul_factor)
     return dest
+
+def convert_to_vocab(data_arr, mul_factor=10000):
+    dest = np.empty_like(data_arr, dtype=int)
+    for id_r, item_r in enumerate(data_arr):
+        for id_c, item_c in enumerate(item_r):
+            dest[id_r][id_c] = int(item_c * mul_factor)
+    return dest
+
+def concate_rows(data_arr):
+    dest = np.empty((data_arr.shape[0]), dtype=list)
+#    dest = np.empty_like(data_arr, dtype=int)
+    for id_r, item_r in enumerate(data_arr):
+        dest[id_r] = tf.convert_to_tensor(np.concatenate((item_r)))
+    return dest
+
+def loss(model, x, y, training, loss_object):
+    # training=training is needed only if there are layers with different
+    # behavior during training versus inference (e.g. Dropout).
+    y_ = model(x, training=training)
+    return loss_object(y_true=y, y_pred=y_)
+
+def grad(model, inputs, targets, loss_object):
+    with tf.GradientTape() as tape:
+        loss_value = loss(model, inputs, targets, True, loss_object)
+    return loss_value, tape.gradient(loss_value, model.trainable_variables)
+
+def model_fit(model, x_train, y_train, loss_object, optimizer):
+    for idx, x in enumerate(x_train):
+        y = y_train[idx]
+        # Optimize the model
+        loss_value, grads = grad(model, x, y, loss_object)
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
 def main():
     
     _type = sys.argv[1]
-    
+    input_size = 2
     if _type == 'mnist':
         model = get_model()
         train_dataset, test_dataset = get_data()
@@ -227,17 +285,24 @@ def main():
         (x_train, y_train), (x_val, y_val) = get_data_text()
         test_dataset = (x_val, y_val)
     elif _type == 'func':
-        model = get_model_LSTM_char()
-        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(2, decide_var)
-        x_train = convert_to_vocab(x_train, int_to_char=True)
-        x_val = convert_to_vocab(x_val, int_to_char=True)
-#        x_train_unique = set(x_train.flatten())
-#        x_val_unique = set(x_val.flatten())
+#        model = get_model_LSTM(10)
+        num_var = 2
+        model = get_model_LSTM_char(10, 4, num_var, add_multiple_inputs=True)
+        (x_train, y_train), (x_val, y_val) = get_data_numerical(num_var)
         test_dataset = (x_val, y_val)
+    elif _type == 'func_star':
+        model = get_model_FF()
+        (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(input_size, decide_var)
+        x_train = convert_to_vocab(x_train)
+        x_val = convert_to_vocab(x_val)
+        test_dataset = (x_val, y_val)
+    loss_obj = tfa.losses.TripletSemiHardLoss()
+    optimizer_obj = tf.keras.optimizers.Adam(0.001)
     # Compile the model
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(0.001),
-        loss=tfa.losses.TripletSemiHardLoss())
+#    print(model.summary())
+#    model.compile(
+#        optimizer=tf.keras.optimizers.Adam(0.001),
+#        loss=tfa.losses.TripletSemiHardLoss())
 #    model.compile(
 #        optimizer=tf.keras.optimizers.Adam(0.001),
 #        loss=tf.keras.losses.BinaryCrossentropy())
@@ -247,8 +312,9 @@ def main():
     elif _type == 'imdb':
         history = model.fit(x_train, y_train, batch_size=32, epochs=1)
         results = model.predict(test_dataset)
-    elif _type == 'func':
-        history = model.fit(x_train, y_train, batch_size=32, epochs=8)
+    elif _type == 'func' or _type == 'func_star':
+        model_fit(model, x_train, y_train, loss_obj, optimizer_obj)
+#        history = model.fit(x_train, y_train, batch_size=32, epochs=8)
         results = model.predict(x_val)
         
     # Save test embeddings for visualization in projector
