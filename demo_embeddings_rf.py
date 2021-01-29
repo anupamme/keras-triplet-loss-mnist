@@ -255,6 +255,12 @@ def concate_rows(data_arr):
         dest[id_r] = tf.convert_to_tensor(np.concatenate((item_r)))
     return dest
 
+def create_batch(x_train, y_train):
+    tf_data = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+    tf_data_batch = tf_data.batch(32)
+    
+    pass
+
 def loss(model, x, y, training, loss_object):
     # training=training is needed only if there are layers with different
     # behavior during training versus inference (e.g. Dropout).
@@ -267,6 +273,8 @@ def grad(model, inputs, targets, loss_object):
     return loss_value, tape.gradient(loss_value, model.trainable_variables)
 
 def model_fit(model, x_train, y_train, loss_object, optimizer):
+    import pdb
+    pdb.set_trace()
     for idx, x in enumerate(x_train):
         y = y_train[idx]
         # Optimize the model
@@ -296,7 +304,8 @@ def main():
         x_train = convert_to_vocab(x_train)
         x_val = convert_to_vocab(x_val)
         test_dataset = (x_val, y_val)
-    loss_obj = tfa.losses.TripletSemiHardLoss()
+#    loss_obj = tfa.losses.TripletSemiHardLoss()
+    loss_obj = tf.keras.losses.BinaryCrossentropy()
     optimizer_obj = tf.keras.optimizers.Adam(0.001)
     # Compile the model
 #    print(model.summary())
