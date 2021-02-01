@@ -7,7 +7,9 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 import tensorflow_datasets as tfds
 
-
+'''
+Q: what is variables?
+'''
 def get_char_LSTM(batch_size, vocab_size=11, embedding_size=512, variables=1, bidirectional=True, share_embeddings=True):
     lstm_features = 512
     if share_embeddings:
@@ -31,7 +33,7 @@ def get_char_LSTM(batch_size, vocab_size=11, embedding_size=512, variables=1, bi
         lstm_out = tf.stack(lstm_outs, 1)
         print('variables', variables)
         lstm_out = tf.reshape(lstm_out, [-1, variables * lstm_features])
-        predictions = tf.keras.layers.Dense(2, activation='softmax', dtype='float32')(lstm_out)
+        predictions = tf.keras.layers.Dense(256, activation=None, dtype='float32')(lstm_out)
 
         # if bidirectional:
         #     lstm_outs = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(lstm_features)) (embeddings)
@@ -87,43 +89,38 @@ def accuracy(predictions, values):
 
 
 def main():
-    maxlen = 32 * 500
-    variables = 2
+    batch_size = 32
+    maxlen = batch_size * 500
+    variables = 4
+    x_dim = 4
     _type = sys.argv[1]
     # input_size = 2
     if _type == 'func':
 #        model = get_model_LSTM(10)
         num_var = 1
-        model, lstm_out = get_char_LSTM(32, bidirectional=False, variables=variables)
+        model, lstm_out = get_char_LSTM(batch_size, bidirectional=False, variables=variables)
         print('lstm_out:', lstm_out)
-        x_train = np.random.randint(11, size=(maxlen, variables, 4))
+        x_train = np.random.randint(11, size=(maxlen, variables, x_dim))
         y_train = [1 if np.sum(x) < 40 else 0 for x in x_train]
-        print(x_train[: 32], [np.sum(x) for x in x_train[: 32]])
+        print(x_train[: batch_size], [np.sum(x) for x in x_train[: batch_size]])
         print(y_train[: 50])
         # y_train = np.random.randint(2, size=(maxlen))
         # print(x_train)
         p = model.predict(x_train)
-        print(p[: 32])
+        print(p[: batch_size])
 
-        x_test = np.random.randint(11, size=(32, variables, 4))
+        x_test = np.random.randint(11, size=(batch_size * 100, variables, x_dim))
         y_test = [1 if np.sum(x) < 40 else 0 for x in x_test]
         # y_test = np.random.randint(2, size=(32))
         print('y_test', y_test)
-
         prediction_probs = model.predict(x_test)
         predictions = [int(np.round(p[1])) for p in prediction_probs]
         print(prediction_probs)
         print(predictions)
         acc = accuracy(predictions, y_test)
         print('Accuracy:', acc)
-    # elif _type == 'func_star':
-    #     model = get_model_FF()
-    #     (x_train, y_train), (x_val, y_val) = get_data_numerical_meta(input_size, decide_var)
-    #     x_train = convert_to_vocab(x_train)
-    #     x_val = convert_to_vocab(x_val)
-    #     test_dataset = (x_val, y_val)
-
-#    loss_obj = tfa.losses.TripletSemiHardLoss()
+    
+#   loss_obj = tfa.losses.TripletSemiHardLoss()
     loss_obj = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     optimizer_obj = tf.keras.optimizers.Adam(0.001)
     # Compile the model
@@ -144,6 +141,11 @@ def main():
             print(predictions)
             acc = accuracy(predictions, y_test)
             print('Accuracy:', acc)
+        
+        import pdb
+        pdb.set_trace()
+        prediction_probs = model.predict(x_test)
+        np.savetxt("vecs.tsv", prediction_probs, delimiter='\t')
         
     # Save test embeddings for visualization in projector
     # test_loss = model.evaluate(x_test, y_test)

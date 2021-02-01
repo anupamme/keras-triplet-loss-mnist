@@ -273,8 +273,6 @@ def grad(model, inputs, targets, loss_object):
     return loss_value, tape.gradient(loss_value, model.trainable_variables)
 
 def model_fit(model, x_train, y_train, loss_object, optimizer):
-    import pdb
-    pdb.set_trace()
     for idx, x in enumerate(x_train):
         y = y_train[idx]
         # Optimize the model
