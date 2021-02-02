@@ -33,7 +33,7 @@ def get_char_LSTM(batch_size, vocab_size=11, embedding_size=512, variables=1, bi
         lstm_out = tf.stack(lstm_outs, 1)
         print('variables', variables)
         lstm_out = tf.reshape(lstm_out, [-1, variables * lstm_features])
-        predictions = tf.keras.layers.Dense(256, activation=None, dtype='float32')(lstm_out)
+        predictions = tf.keras.layers.Dense(2, activation='softmax', dtype='float32')(lstm_out)
 
         # if bidirectional:
         #     lstm_outs = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(lstm_features)) (embeddings)
@@ -91,8 +91,8 @@ def accuracy(predictions, values):
 def main():
     batch_size = 32
     maxlen = batch_size * 500
-    variables = 4
-    x_dim = 4
+    variables = 2
+    x_dim = 2
     _type = sys.argv[1]
     # input_size = 2
     if _type == 'func':
@@ -112,6 +112,8 @@ def main():
         x_test = np.random.randint(11, size=(batch_size * 100, variables, x_dim))
         y_test = [1 if np.sum(x) < 40 else 0 for x in x_test]
         # y_test = np.random.randint(2, size=(32))
+        import pdb
+        pdb.set_trace()
         print('y_test', y_test)
         prediction_probs = model.predict(x_test)
         predictions = [int(np.round(p[1])) for p in prediction_probs]
