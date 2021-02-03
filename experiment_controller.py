@@ -255,20 +255,7 @@ def accuracy(predictions, values):
     
     return correct / len(predictions)
 
-'''
-NN to train solubility of oxygen: steps:
-1. get training data 
-2. Get NN architecture
-3. write the training routine:
-    write custom loss
-4. 
-5. 
-'''
-def train_main_network(task_type):
-    (x_train, y_train), (x_val, y_val) = create_synthetic_dataset_main(Constraint_Type.Monotonic)
-    # step 1: create embeddings
-    # create training dataset for the constraint
-    # Y1 < Y2 sample real valued uniformly distributed in -100 to 100
+def train_secondary_network(y_train):
     (x_train_em, y_train_em), (x_test_em, y_test_em) = create_synthetic_dataset_em(y_train)
     batch_size = 32
     maxlen = batch_size * 500
@@ -297,15 +284,43 @@ def train_main_network(task_type):
     print(predictions)
     acc = accuracy(predictions, y_test_em)
     print('Accuracy After:', acc)
+    return model_em
+
+'''
+NN to train solubility of oxygen: steps:
+1. get training data 
+2. Get NN architecture
+3. write the training routine:
+    write custom loss
+4. 
+5. 
+'''
+def train_main_network(x_train, y_train, x_val, y_val, model_em):
+    # step 1: create embeddings
+    # create training dataset for the constraint
+    # Y1 < Y2 sample real valued uniformly distributed in -100 to 100
+    
     
     # main network.
     model_1 = get_model(2, 2)
     model_2 = get_model(2, 2)
     model_1.compile(loss='mae', optimizer='adam')
+    test_loss = model_1.evaluate(x_val, y_val)
+    print('test loss 1 before: ' + str(test_loss))
     model_1.fit(x_train, y_train, batch_size=32, epochs=1)
+    test_loss = model_1.evaluate(x_val, y_val)
+    print('test loss 1 after: ' + str(test_loss))
     
     loss_obj = tf.keras.losses.MeanAbsoluteError()
     optimizer_obj = tf.keras.optimizers.Adam(learning_rate=0.001)
+    import pdb
+    pdb.set_trace()
     model_fit(model_2, x_train, y_train, loss_obj, optimizer_obj, model_em)
     test_loss = model.evaluate(x_val, y_val)
     print('test loss: ' + str(test_loss))
+    
+if __name__=="__main__":
+    (x_train, y_train), (x_val, y_val) = create_synthetic_dataset_main(Constraint_Type.Monotonic)
+    model_em = train_secondary_network(y_train)
+#    model_em = None
+    train_main_network(x_train, y_train, x_val, y_val, model_em)
