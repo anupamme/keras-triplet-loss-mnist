@@ -91,8 +91,14 @@ def convert_to_vocab(float_str):
     for ch in float_str:
         if ch == '.':
             out.append(10)
+        elif ch == '-':
+            out.append(11)
         else:
             out.append(int(ch))
+    if len(out) < 10:
+        out.append(10)  # append .
+        while len(out) < 10:
+            out.append(0)   # keep appending 0
     return out
     
 '''
@@ -121,7 +127,7 @@ def create_synthetic_dataset_em(y_train, maxlen=20000, input_dim=2, x_range=10):
     
     return (x_train[:int(maxlen/2)], y_train[:int(maxlen/2)]), (x_train[int(maxlen/2):], y_train[int(maxlen/2):])
     
-def get_model_em(batch_size, vocab_size=11, embedding_size=512, variables=1, bidirectional=True, share_embeddings=True):
+def get_model_em(batch_size, vocab_size=12, embedding_size=512, variables=1, bidirectional=True, share_embeddings=True):
     lstm_features = 512
     if share_embeddings:
         embedding_layer = tf.keras.layers.Embedding(
@@ -227,25 +233,47 @@ def get_loss_main():
 def get_optimiser():
     return tf.keras.optimizers.Adam(0.001)
 
+def loss_reg(model, x, y, training, loss_object, model_em):
+    # training=training is needed only if there are layers with different
+    # behavior during training versus inference (e.g. Dropout).
+    y_ = model(np.asarray([x]), training=training)
+    y_np = y_.numpy()
+    _total_loss = 0
+    for item in y_np[0]:
+        val_1 = convert_to_vocab(str(item[0]))[:10]  #FIXME: make 10 a global variable xrange
+        val_2 = convert_to_vocab(str(item[1]))[:10]
+        val = [[val_1, val_2]]
+        prob_vec = model_em.predict(val)
+        print('actual values: ' + str(item))
+        print('predicted probability: ' + str(prob_vec[0]))
+        prob_non_sat = prob_vec[0][0]
+        _val = loss_object(y_true=y, y_pred=y_).numpy()
+        print('loss_local, regularising_loss: ' + str(_val) + ', ' + str(prob_non_sat))
+        _total_loss = _total_loss + (float)(_val + prob_non_sat)
+    return tf.convert_to_tensor(_total_loss)
+
 def loss(model, x, y, training, loss_object, model_em):
     # training=training is needed only if there are layers with different
     # behavior during training versus inference (e.g. Dropout).
-    y_ = model(x, training=training)
-    _total_loss = (float)(loss_object(y_true=y, y_pred=y_) / calculate_regularising_loss(y_, model_em))
+    y_ = model(np.asarray([x]), training=training)
+    _total_loss = loss_object(y_true=y, y_pred=y_)
     return _total_loss
 
 def grad(model, inputs, targets, loss_object, model_em):
     with tf.GradientTape() as tape:
         loss_value = loss(model, inputs, targets, True, loss_object, model_em)
+    import pdb
+    pdb.set_trace()
     return loss_value, tape.gradient(loss_value, model.trainable_variables)
 
-def model_fit(model, x_train, y_train, loss_obj, optimizer_obj, model_em):
-    for idx, x in enumerate(x_train):
-        y = y_train[idx]
-        # Optimize the model
-        loss_value, grads = grad(model, x, y, loss_obj, model_em)
-        optimizer_obj.apply_gradients(zip(grads, model.trainable_variables))
-    pass
+def model_fit(model, x_train, y_train, loss_obj, optimizer_obj, model_em, epochs=1, batch_size=32):
+    for e in range(epochs):
+        for i in range(0, len(x_train), batch_size):
+            batch_x = x_train[i : i + batch_size]
+            # print(batch_x)
+            batch_y = y_train[i : i + batch_size]
+            loss_value, grads = grad(model, batch_x, batch_y, loss_obj, model_em)
+            optimizer_obj.apply_gradients(zip(grads, model.trainable_variables))
 
 def accuracy(predictions, values):
     correct = 0.0
@@ -261,7 +289,6 @@ def train_secondary_network(y_train):
     maxlen = batch_size * 500
     variables = 2
     model_em, _ = get_model_em(batch_size, bidirectional=False, variables=variables)
-    
     # with random inits
     prediction_probs = model_em.predict(x_test_em)
     predictions = [int(np.round(p[1])) for p in prediction_probs]
@@ -276,6 +303,9 @@ def train_secondary_network(y_train):
         optimizer=optimizer_em,
         loss=loss_em)
     
+#    print('x_train_em shape: ' + str(x_train_em.shape))
+    print('x_train_em: ' + str(x_train_em[0]))
+#    print('x_train_em shape: ' + str(x_train_em[0].shape))
     model_em.fit(x_train_em, y_train_em, batch_size=32, epochs=1)
     
     prediction_probs = model_em.predict(x_test_em)
@@ -285,6 +315,31 @@ def train_secondary_network(y_train):
     acc = accuracy(predictions, y_test_em)
     print('Accuracy After:', acc)
     return model_em
+
+def my_loss_fn(y_true, y_pred):
+    abs_diff = tf.abs(y_true - y_pred)
+    sat_prob = 1.0
+    return tf.reduce_mean(abs_diff, axis=-1)/sat_prob  # Note the `axis=-1`
+
+def custom_loss(layer, model_em):
+
+    # Create a loss function that adds the MSE loss to the mean of all squared activations of a specific layer
+    def loss(y_true,y_pred):
+        abs_diff = tf.abs(y_true - y_pred)
+        print('y_pred: ' + str(y_pred))
+        print(y_pred)
+        print('y_pred: ' + str(y_pred.eval()))
+        sat_prob = model_em(y_pred)
+        return tf.reduce_mean(abs_diff, axis=-1)
+   
+    # Return a function
+    return loss
+
+def my_loss(y_true,y_pred):
+        abs_diff = tf.abs(y_true - y_pred)
+        print(y_pred.numpy())
+        sat_prob = model_em(y_pred)
+        return tf.reduce_mean(abs_diff, axis=-1)
 
 '''
 NN to train solubility of oxygen: steps:
@@ -300,23 +355,21 @@ def train_main_network(x_train, y_train, x_val, y_val, model_em):
     # create training dataset for the constraint
     # Y1 < Y2 sample real valued uniformly distributed in -100 to 100
     
-    
+
     # main network.
     model_1 = get_model(2, 2)
     model_2 = get_model(2, 2)
-    model_1.compile(loss='mae', optimizer='adam')
+    layer = model_1.get_layer(index=-1)
+
+    model_1.compile(loss='mse', optimizer='adam')
     test_loss = model_1.evaluate(x_val, y_val)
     print('test loss 1 before: ' + str(test_loss))
-    model_1.fit(x_train, y_train, batch_size=32, epochs=1)
-    test_loss = model_1.evaluate(x_val, y_val)
-    print('test loss 1 after: ' + str(test_loss))
-    
+
     loss_obj = tf.keras.losses.MeanAbsoluteError()
     optimizer_obj = tf.keras.optimizers.Adam(learning_rate=0.001)
-    import pdb
-    pdb.set_trace()
+    
     model_fit(model_2, x_train, y_train, loss_obj, optimizer_obj, model_em)
-    test_loss = model.evaluate(x_val, y_val)
+    test_loss = model_2.evaluate(x_val, y_val)
     print('test loss: ' + str(test_loss))
     
 if __name__=="__main__":
