@@ -98,7 +98,7 @@ def loss(model, x, y, training, loss_object, model_em):
 
 def grad(model, inputs, targets, loss_object, model_em):
     with tf.GradientTape() as tape:
-        loss_value = loss(model, inputs, targets, True, loss_object, model_em)
+        loss_value = loss_reg(model, inputs, targets, True, loss_object, model_em)
     import pdb
     pdb.set_trace()
     return loss_value, tape.gradient(loss_value, model.trainable_variables)
