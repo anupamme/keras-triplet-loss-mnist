@@ -187,7 +187,7 @@ def train_secondary_network(y_train):
     acc = u.accuracy(predictions, y_test_em)
     print('Accuracy Before:', acc)
     
-    loss_em = u.get_loss_em()
+    loss_em = u.get_loss_em(is_triplet=True)
     optimizer_em = u.get_optimiser_em()
     model_em.compile(
         optimizer=optimizer_em,
@@ -215,6 +215,8 @@ def custom_loss(layer, model_em):
         abs_diff = tf.abs(y_true - y_pred)
         print('y_pred: ' + str(y_pred))
         print(y_pred)
+        import pdb
+        pdb.set_trace()
         print('y_pred: ' + str(y_pred.eval()))
         sat_prob = model_em(y_pred)
         return tf.reduce_mean(abs_diff, axis=-1)
@@ -244,17 +246,23 @@ def train_main_network(x_train, y_train, x_val, y_val, model_em):
 
     # main network.
     model_1 = get_model(2, 2)
-    model_2 = get_model(2, 2)
-    layer = model_1.get_layer(index=-1)
-
+    
     model_1.compile(loss='mse', optimizer='adam')
     test_loss = model_1.evaluate(x_val, y_val)
     print('test loss 1 before: ' + str(test_loss))
 
     loss_obj = tf.keras.losses.MeanAbsoluteError()
     optimizer_obj = tf.keras.optimizers.Adam(learning_rate=0.001)
+    import pdb
+    pdb.set_trace()
+    with tf.compat.v1.Session() as sess:
+        model_2 = get_model(2, 2)
+        layer = model_2.get_layer(index=-1)
+        model_2.compile(loss=custom_loss(layer, model_em), optimizer=optimizer_obj)
+        history = model_2.fit(x_train, y_train, batch_size=32, epochs=1)
     
-    u.model_fit(model_2, x_train, y_train, loss_obj, optimizer_obj, model_em)
+    
+#    u.model_fit(model_2, x_train, y_train, loss_obj, optimizer_obj, model_em)
     test_loss = model_2.evaluate(x_val, y_val)
     print('test loss: ' + str(test_loss))
     

@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import tensorflow_addons as tfa
 
 def accuracy(predictions, values):
     correct = 0.0
@@ -24,8 +25,12 @@ def convert_to_vocab(float_str):
             out.append(0)   # keep appending 0
     return out
 
-def get_loss_em():
-    return tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+def get_loss_em(is_triplet=False):
+    if is_triplet:
+#        return tfa.losses.contrastive_loss()
+        return tfa.losses.TripletSemiHardLoss()
+    else:
+        return tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
 def get_optimiser_em():
     return tf.keras.optimizers.Adam(0.001)
