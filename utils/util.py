@@ -77,8 +77,8 @@ def loss_reg(model, x, y, training, loss_object, model_em):
     y_np = y_.numpy()
     _total_loss = 0
     for item in y_np[0]:
-        val_1 = u.convert_to_vocab(str(item[0]))[:10]  #FIXME: make 10 a global variable xrange
-        val_2 = u.convert_to_vocab(str(item[1]))[:10]
+        val_1 = convert_to_vocab(str(item[0]))[:10]  #FIXME: make 10 a global variable xrange
+        val_2 = convert_to_vocab(str(item[1]))[:10]
         val = [[val_1, val_2]]
         prob_vec = model_em.predict(val)
         print('actual values: ' + str(item))
