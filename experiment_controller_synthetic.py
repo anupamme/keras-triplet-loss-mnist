@@ -183,11 +183,11 @@ def train_secondary_network(y_train):
     prediction_probs = model_em.predict(x_test_em)
     predictions = [int(np.round(p[1])) for p in prediction_probs]
     print(prediction_probs)
-    print(predictions)
+    # print(predictions)
     acc = u.accuracy(predictions, y_test_em)
     print('Accuracy Before:', acc)
     
-    loss_em = u.get_loss_em(is_triplet=True)
+    loss_em = u.get_loss_em(is_triplet=False)
     optimizer_em = u.get_optimiser_em()
     model_em.compile(
         optimizer=optimizer_em,
@@ -198,35 +198,72 @@ def train_secondary_network(y_train):
     prediction_probs = model_em.predict(x_test_em)
     predictions = [int(np.round(p[1])) for p in prediction_probs]
     print(prediction_probs)
-    print(predictions)
+    # print(predictions)
     acc = u.accuracy(predictions, y_test_em)
     print('Accuracy After:', acc)
     return model_em
 
-def my_loss_fn(y_true, y_pred):
-    abs_diff = tf.abs(y_true - y_pred)
-    sat_prob = 1.0
-    return tf.reduce_mean(abs_diff, axis=-1)/sat_prob  # Note the `axis=-1`
 
-def custom_loss(layer, model_em):
+def create_FFN(layer_sizes, activationFuncs=None):
+    """[summary]
 
-    # Create a loss function that adds the MSE loss to the mean of all squared activations of a specific layer
-    def loss(y_true,y_pred):
-        abs_diff = tf.abs(y_true - y_pred)
-        print('y_pred: ' + str(y_pred))
-        print(y_pred)
-        print('y_pred: ' + str(y_pred.eval()))
-        sat_prob = model_em(y_pred)
-        return tf.reduce_mean(abs_diff, axis=-1)
-   
-    # Return a function
-    return loss
+    Args:
+        layer_sizes ([type]): [description]
+        activationFuncs ([type], optional): [description]. Defaults to None.
 
-def my_loss(y_true,y_pred):
-        abs_diff = tf.abs(y_true - y_pred)
-        print(y_pred.numpy())
-        sat_prob = model_em(y_pred)
-        return tf.reduce_mean(abs_diff, axis=-1)
+    Raises:
+        ValueError: If layer_sizes is not a list or tuple.
+        ValueError: [description]
+        ValueError: [description]
+        ValueError: [description]
+
+    Returns:
+        [type]: [description]
+    """
+    if not isinstance(layer_sizes, ((list, tuple))):
+        raise ValueError('Please input a list or tuple of layer sizes.')
+    if len(layer_sizes) < 2:
+        raise ValueError('Please use at least an input and output layer.')
+    if activationFuncs is not None:
+        if not isinstance(activationFuncs, ((list, tuple))):
+            raise ValueError('Please input a list or tuple for activation functions.')
+        if len(layer_sizes) - 1 != len(activationFuncs):
+            raise ValueError('Please use the correct number of activation functions.')
+
+    inputs = tf.keras.layers.Input(shape=(layer_sizes[0]), name='input', dtype='float32')
+    # print('ffn inputs:', inputs)
+    layers = [inputs]
+    l_index = 0
+    for size in layer_sizes[1: -1]:
+        # print('size:', size)
+        if activationFuncs is None:
+            activation = 'relu'
+        else:
+            activation = activationFuncs[l_index]
+            l_index += 1
+        
+        layer = tf.keras.layers.Dense(size, activation=activation, kernel_initializer='he_uniform', dtype='float32')(layers[-1])
+        layers.append(layer)
+
+    # print(layer_sizes[-1])
+    # print(layer_sizes)
+    if activationFuncs is None:
+        predictions = tf.keras.layers.Dense(layer_sizes[-1], name="predictions", dtype='float32')(layers[-1])
+    else:
+        predictions = tf.keras.layers.Dense(
+            layer_sizes[-1], name="predictions", activation=activationFuncs[-1], dtype='float32')(layers[-1])
+    
+    layers.append(predictions)
+    return tf.keras.models.Model(inputs=inputs, outputs=predictions)
+
+
+def create_constrained_model(model, constraint_encoder):
+    # print('shape:', constraint_encoder.inputs[0].shape[1: ])
+    const_inputs = tf.keras.layers.Input(shape=constraint_encoder.inputs[0].shape[1: ], name='const_input', dtype='int64')
+
+    probabilities = constraint_encoder(const_inputs)
+    # print(model.inputs)
+    return tf.keras.models.Model(inputs=[model.inputs[0], const_inputs], outputs=[model.outputs, probabilities])
 
 '''
 NN to train solubility of oxygen: steps:
@@ -237,33 +274,69 @@ NN to train solubility of oxygen: steps:
 4. 
 5. 
 '''
-def train_main_network(x_train, y_train, x_val, y_val, model_em):
+def train_main_network(x_train, y_train, x_val, y_val, constraint_encoder):
     # step 1: create embeddings
     # create training dataset for the constraint
     # Y1 < Y2 sample real valued uniformly distributed in -100 to 100
 
-    # main network.
-    model_1 = get_model(2, 2)
-    
-    model_1.compile(loss='mse', optimizer='adam')
-    test_loss = model_1.evaluate(x_val, y_val)
-    print('test loss 1 before: ' + str(test_loss))
+    ffn_model = create_FFN([2, 20, 2])
+    print(ffn_model.outputs[0].shape)
+    constrained_model = create_constrained_model(ffn_model, constraint_encoder)
+    # print(x_train)
 
-    loss_obj = tf.keras.losses.MeanAbsoluteError()
+    mae = tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.NONE)
     optimizer_obj = tf.keras.optimizers.Adam(learning_rate=0.001)
+    u.model_fit(constrained_model, ffn_model, constraint_encoder, x_train, y_train, mae, optimizer_obj)
     
-    model_2 = get_model(2, 2)
-#    layer = model_2.get_layer(index=-1)
-#    model_2.compile(loss=custom_loss(layer, model_em), optimizer=optimizer_obj)
-#    history = model_2.fit(x_train, y_train, batch_size=32, epochs=1)
+    # losses = {
+    #     "predictions" : tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.NONE)#,
+    #     # "predictions" : tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
+    # }
+    # lossWeights = {"predictions": 1.0}
+
+    # ffn_model.compile(
+    #     optimizer=optimizer_obj,
+    #     loss = losses, loss_weights=lossWeights
+    #     # loss=[tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.NONE),\
+    #     #     tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)]
+    # )
     
-    
-    u.model_fit(model_2, x_train, y_train, loss_obj, optimizer_obj, model_em)
-    test_loss = model_2.evaluate(x_val, y_val)
-    print('test loss: ' + str(test_loss))
-    
+    # batch_size = 32
+    # for e in range(1):
+    #     for i in range(0, len(x_train), batch_size):
+    #         batch_x = x_train[i : i + batch_size]
+    #         batch_y = y_train[i : i + batch_size]
+    #         print(batch_x)
+    #         loss = ffn_model.train_on_batch(np.array(batch_x), np.array(batch_y))
+    #         print('Loss:', loss)
+    #         break
+
+    # # losses = {
+    # #     "predictions" : tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.NONE),
+    # #     "predictions" : tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.NONE)
+    # # }
+    # # lossWeights = {"predictions": 1.0}
+
+    # # batch_size = 32
+    # # for e in range(1):
+    # #     for i in range(0, len(x_train), batch_size):
+    # #         batch_x = x_train[i : i + batch_size]
+    # #         batch_y = y_train[i : i + batch_size]
+    # #         print(batch_x)
+
+    # #         predictions = model.predict(batch_x)
+    # #         # Convert predictions to input format
+    # #         const_inputs = [[convert_to_vocab(str(prediction[0]))[:10], \
+    # #             convert_to_vocab(str(prediction[1]))[:10]] for prediction in predictions]
+            
+    # #         loss = constrained_model.train_on_batch([np.asarray(batch_x), np.asarray(const_inputs)])
+    # #         print('Loss:', loss)
+    # #         break
+
+
+
 if __name__=="__main__":
     (x_train, y_train), (x_val, y_val) = create_synthetic_dataset_main(Constraint_Type.Monotonic)
-    model_em = train_secondary_network(y_train)
+    constraint_encoder = train_secondary_network(y_train)
 #    model_em = None
-    train_main_network(x_train, y_train, x_val, y_val, model_em)
+    train_main_network(x_train, y_train, x_val, y_val, constraint_encoder)
