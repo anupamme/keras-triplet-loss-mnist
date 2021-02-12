@@ -215,12 +215,12 @@ def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, lo
             # optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
             batch_input = [np.asarray(batch_x), np.asarray(const_inputs)]
-            batch_out = [np.asarray(batch_y), np.ones(batch_size)]
+            batch_out = [np.asarray(batch_y), np.ones(len(batch_x))]
             constraint_loss = tf.keras.losses.SparseCategoricalCrossentropy(
                 from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
             loss_value, grads = grad(constrained_model, batch_input, batch_out, loss, constraint_loss)
             print('constrained_loss=', loss_value)
             # print(constrained_model.trainable_variables) # Double checking that the encoder is not being retrained.
             optimizer.apply_gradients(zip(grads, constrained_model.trainable_variables))
-            break
+            # break
 
