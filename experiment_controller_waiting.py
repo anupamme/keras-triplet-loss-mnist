@@ -2,6 +2,9 @@ import sys
 import json
 from tensorflow.keras import layers
 from tensorflow.keras.layers.experimental import preprocessing
+import tensorflow as tf
+import numpy as np
+import pandas as pd
 
 from utils import util as u
 
@@ -11,10 +14,10 @@ def create_synthetic_dataset_sec(y_train, maxlen=20000, input_dim=1, x_range=10)
     y_train = []
     while count < maxlen:
         count += 1
-        x_train_item = [np.random.randint((0, 200), input_dim)]
-#        x_train_item_v = [u.convert_to_vocab(str(x_train_item[0]))[:x_range]]
-        x_train.append(x_train_item)
-        if (x_train_item[0] < 150) and (x_train_item[0] > 50):
+        x_train_item = np.asarray([np.random.randint(0, 1000)])
+        x_train_item_v = [u.convert_to_vocab(str(x_train_item[0]))[:x_range]]
+        x_train.append(x_train_item_v)
+        if (x_train_item[0] < 445) and (x_train_item[0] > 0):
             y_train_item = 1
         else:
             y_train_item = 0
@@ -48,7 +51,6 @@ def train_secondary_network(y_train):
     maxlen = batch_size * 500
     variables = 1
     model_em, _ = u.get_model_em(batch_size, bidirectional=False, variables=variables)
-    
     prediction_probs = model_em.predict(x_test_em)
     predictions = [int(np.round(p[1])) for p in prediction_probs]
     print(prediction_probs)
@@ -100,28 +102,49 @@ def create_dataset_main(x_1_file, x_2_file, y_file):
     test_y = training_data_y[int(len(training_data_y)/2):]
     return (train_x, train_y),(test_x, test_y)
 
-def train_main_network(x_train, y_train, x_val, y_val, model_em):
+def train_main_network(x_train, y_train, x_val, y_val, constraint_encoder):
     
-    normalizer = preprocessing.Normalization()
-    normalizer.adapt(x_train)
-    model = get_model(4, 1, normalizer)
-    test_loss = model.evaluate(x_val, y_val)
-    print('test loss before: ' + str(test_loss))
+#    normalizer = preprocessing.Normalization()
+#    normalizer.adapt(x_train)
     
+#    model = get_model(4, 1, normalizer)
+    ffn_model = u.create_FFN([4, 64, 64, 1], ['tanh', 'tanh', 'tanh'])
+    ffn_model_copy = tf.keras.models.clone_model(ffn_model)
+    print(ffn_model.outputs[0].shape)
+    
+#    test_loss = ffn_model.evaluate(x_val, y_val)
+#    print('test loss before: ' + str(test_loss))
+    
+    mae = tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.NONE)
     optimizer_obj = tf.keras.optimizers.Adam(learning_rate=0.001)
-    loss_obj = tf.keras.losses.MeanAbsoluteError()
     
-#    callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=20, restore_best_weights=True)
-#    model.compile(loss=loss_obj, optimizer=optimizer_obj)
-#    history = model.fit(x_train, y_train, batch_size=32, epochs=2000, callbacks=[callback])
     
-    u.model_fit(model, x_train, y_train, loss_obj, optimizer_obj, model_em)
+    ffn_model.compile(optimizer=optimizer_obj, loss=mae)
+    ffn_model_copy.compile(optimizer=optimizer_obj, loss=mae)
+
+    test_loss = ffn_model_copy.evaluate(x_val, y_val)
+    print('MAE before constraint training: ' + str(test_loss))
     
-    print(len(history.history['loss']))
+    history = ffn_model_copy.fit(x_train, y_train, batch_size=32, epochs=10)
+    test_loss = ffn_model_copy.evaluate(x_val, y_val)
+    print('MAE without constraint training: ' + str(test_loss))
+    
+    constrained_model = u.create_constrained_model(ffn_model, constraint_encoder)
+    constrained_model = u.model_fit(constrained_model, ffn_model, constraint_encoder, x_train, y_train, mae, optimizer_obj, epochs=10)
+    
+    test_loss = ffn_model.evaluate(x_val, y_val)
+    print('MAE after constraint training: ' + str(test_loss))
+    
+    x_ds = pd.DataFrame(x_train)
+    y_ds = pd.DataFrame(y_train)
+    print(x_ds.describe())
+    print(y_ds.describe())
+    
+#    print(len(history.history['loss']))
     #    model_fit(model, x_train, y_train, loss_obj, optimizer_obj)
-    test_loss = model.evaluate(x_val, y_val)
-    print('test loss after: ' + str(test_loss))
-    print(model.summary())
+#    test_loss = model.evaluate(x_val, y_val)
+#    print('test loss after: ' + str(test_loss))
+#    print(model.summary())
     
     pass
 

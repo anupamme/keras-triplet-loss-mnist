@@ -10,6 +10,69 @@ def accuracy(predictions, values):
     
     return correct / len(predictions)
 
+def create_FFN(layer_sizes, activationFuncs=None):
+    """[summary]
+
+    Args:
+        layer_sizes ([type]): [description]
+        activationFuncs ([type], optional): [description]. Defaults to None.
+
+    Raises:
+        ValueError: If layer_sizes is not a list or tuple.
+        ValueError: [description]
+        ValueError: [description]
+        ValueError: [description]
+
+    Returns:
+        [type]: [description]
+    """
+    if not isinstance(layer_sizes, ((list, tuple))):
+        raise ValueError('Please input a list or tuple of layer sizes.')
+    if len(layer_sizes) < 2:
+        raise ValueError('Please use at least an input and output layer.')
+    if activationFuncs is not None:
+        if not isinstance(activationFuncs, ((list, tuple))):
+            raise ValueError('Please input a list or tuple for activation functions.')
+        if len(layer_sizes) - 1 != len(activationFuncs):
+            raise ValueError('Please use the correct number of activation functions.')
+
+    inputs = tf.keras.layers.Input(shape=(layer_sizes[0]), name='input', dtype='float32')
+    # print('ffn inputs:', inputs)
+    layers = [inputs]
+    l_index = 0
+    # AM: what is size doing there. 
+    # when are activationFuncs used
+    #
+    for size in layer_sizes[1: -1]:
+        # print('size:', size)
+        if activationFuncs is None:
+            activation = 'relu'
+        else:
+            activation = activationFuncs[l_index]
+            l_index += 1
+        
+        layer = tf.keras.layers.Dense(size, activation=activation, kernel_initializer='he_uniform', dtype='float32')(layers[-1])
+        layers.append(layer)
+
+    # print(layer_sizes[-1])
+    # print(layer_sizes)
+    if activationFuncs is None:
+        predictions = tf.keras.layers.Dense(layer_sizes[-1], name="predictions", dtype='float32')(layers[-1])
+    else:
+        predictions = tf.keras.layers.Dense(
+            layer_sizes[-1], name="predictions", activation=activationFuncs[-1], dtype='float32')(layers[-1])
+    
+    layers.append(predictions)
+    return tf.keras.models.Model(inputs=inputs, outputs=predictions)
+
+
+def create_constrained_model(model, constraint_encoder):
+    # print('shape:', constraint_encoder.inputs[0].shape[1: ])
+    const_inputs = tf.keras.layers.Input(shape=constraint_encoder.inputs[0].shape[1: ], name='const_input', dtype='int64')
+    probabilities = constraint_encoder(const_inputs)
+    # print(model.inputs)
+    return tf.keras.models.Model(inputs=[model.inputs[0], const_inputs], outputs=[model.outputs, probabilities])
+
 def convert_to_vocab(float_str):
     out = []
     for ch in float_str:
@@ -17,6 +80,10 @@ def convert_to_vocab(float_str):
             out.append(10)
         elif ch == '-':
             out.append(11)
+        elif ch == 'n':
+            out.append(12)
+        elif ch == 'a':
+            out.append(13)    
         else:
             out.append(int(ch))
     if len(out) < 10:
@@ -35,7 +102,7 @@ def get_loss_em(is_triplet=False):
 def get_optimiser_em():
     return tf.keras.optimizers.Adam(0.001)
 
-def get_model_em(batch_size, vocab_size=12, embedding_size=512, variables=1, bidirectional=True, share_embeddings=True):
+def get_model_em(batch_size, vocab_size=14, embedding_size=512, variables=1, bidirectional=True, share_embeddings=True):
     lstm_features = 512
     if share_embeddings:
         embedding_layer = tf.keras.layers.Embedding(
@@ -139,9 +206,9 @@ def constrained_loss(model, x, y, training, loss_obj, constraint_loss):
     loss = loss_obj(y_true=y[0], y_pred=predictions)
     
     # Calculate contraint penalties
-    # print(probs)
-    cl = constraint_loss(y_true=y[1], y_pred=probs)
-    # print(tf.math.exp(cl))
+#    print(probs)
+    cl = 0.01 * constraint_loss(y_true=y[1], y_pred=probs)
+#    print(tf.math.exp(cl))
     formula1 = tf.multiply(loss, tf.math.exp(cl)) # could use 2 instead of e as the base
     # print('formula1', formula1)
     formula2 = tf.add(loss, tf.multiply(loss, cl))
@@ -196,7 +263,9 @@ def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, lo
 
             predictions = model.predict(batch_x)
             # Convert predictions to input format
-            const_inputs = [[convert_to_vocab(str(prediction[0]))[:10], convert_to_vocab(str(prediction[1]))[:10]] for prediction in predictions]
+#            print('prediction for vocab: ' + str(predictions))
+            const_inputs = [[convert_to_vocab(str(prediction[0]))[:10]] for prediction in predictions]
+#            const_inputs = [[convert_to_vocab(str(prediction[0]))[:10], convert_to_vocab(str(prediction[1]))[:10]] for prediction in predictions]
             
             for l in range(len(constraint_encoder.layers)):
                 constraint_encoder.layers[l].trainable = False
@@ -215,12 +284,11 @@ def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, lo
             # optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
             batch_input = [np.asarray(batch_x), np.asarray(const_inputs)]
-            batch_out = [np.asarray(batch_y), np.ones(batch_size)]
+            batch_out = [np.asarray(batch_y), np.ones(len(batch_x))]
             constraint_loss = tf.keras.losses.SparseCategoricalCrossentropy(
                 from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
             loss_value, grads = grad(constrained_model, batch_input, batch_out, loss, constraint_loss)
             print('constrained_loss=', loss_value)
             # print(constrained_model.trainable_variables) # Double checking that the encoder is not being retrained.
             optimizer.apply_gradients(zip(grads, constrained_model.trainable_variables))
-            break
-
+    return constrained_model
