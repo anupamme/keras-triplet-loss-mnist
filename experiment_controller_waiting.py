@@ -8,6 +8,18 @@ import pandas as pd
 
 from utils import util as u
 
+def does_satisfay(y_val):
+    return y_val < 445 and y_val > 0
+        
+
+def calculate_constraint_violation(model, x_test):
+    y_pred = model.predict(x_test)
+    num_violations = 0
+    for item in y_pred:
+        if not does_satisfay(item):
+            num_violations += 1
+    return num_violations
+
 def create_synthetic_dataset_sec(y_train, maxlen=20000, input_dim=1, x_range=10):
     count = 0
     x_train = []
@@ -17,7 +29,7 @@ def create_synthetic_dataset_sec(y_train, maxlen=20000, input_dim=1, x_range=10)
         x_train_item = np.asarray([np.random.randint(0, 1000)])
         x_train_item_v = [u.convert_to_vocab(str(x_train_item[0]))[:x_range]]
         x_train.append(x_train_item_v)
-        if (x_train_item[0] < 445) and (x_train_item[0] > 0):
+        if does_satisfay(x_train_item[0]):
             y_train_item = 1
         else:
             y_train_item = 0
@@ -98,17 +110,19 @@ def create_dataset_main(x_1_file, x_2_file, y_file):
             training_data_y.append(y_val)
     train_x = training_data_x[:int(len(training_data_x)/2)]
     train_y = training_data_y[:int(len(training_data_y)/2)]
-    test_x = training_data_x[int(len(training_data_x)/2):]
-    test_y = training_data_y[int(len(training_data_y)/2):]
-    return (train_x, train_y),(test_x, test_y)
+    val_x = training_data_x[int(len(training_data_x)/2):int(3*len(training_data_x)/4)]
+    val_y = training_data_y[int(len(training_data_y)/2):int(3*len(training_data_y)/4)]
+    test_x = training_data_x[int(3*len(training_data_x)/4):]
+    test_y = training_data_y[int(3*len(training_data_y)/4):]
+    return (train_x, train_y),(val_x, val_y),(test_x, test_y)
 
-def train_main_network(x_train, y_train, x_val, y_val, constraint_encoder):
+def train_main_network(x_train, y_train, x_val, y_val, x_test, y_test, constraint_encoder):
     
 #    normalizer = preprocessing.Normalization()
 #    normalizer.adapt(x_train)
     
 #    model = get_model(4, 1, normalizer)
-    ffn_model = u.create_FFN([4, 64, 64, 1], ['tanh', 'tanh', 'tanh'])
+    ffn_model = u.create_FFN([4, 64, 64, 64, 1], ['tanh', 'tanh', 'tanh', 'tanh'])
     ffn_model_copy = tf.keras.models.clone_model(ffn_model)
     print(ffn_model.outputs[0].shape)
     
@@ -122,22 +136,32 @@ def train_main_network(x_train, y_train, x_val, y_val, constraint_encoder):
     ffn_model.compile(optimizer=optimizer_obj, loss=mae)
     ffn_model_copy.compile(optimizer=optimizer_obj, loss=mae)
 
-    test_loss = ffn_model_copy.evaluate(x_val, y_val)
-    print('MAE before constraint training: ' + str(test_loss))
+    test_loss = ffn_model_copy.evaluate(x_test, y_test)
+    num_violations = calculate_constraint_violation(ffn_model_copy, x_test)
+    print('MAE, num violations before constraint training: ' + str(test_loss) + ', ' + str(num_violations))
     
-    history = ffn_model_copy.fit(x_train, y_train, batch_size=32, epochs=10)
-    test_loss = ffn_model_copy.evaluate(x_val, y_val)
-    print('MAE without constraint training: ' + str(test_loss))
+    history = ffn_model_copy.fit(x_train, y_train, batch_size=32, epochs=1)
+    test_loss = ffn_model_copy.evaluate(x_test, y_test)
+    num_violations = calculate_constraint_violation(ffn_model_copy, x_test)
+    print('MAE, num violations without constraint training: ' + str(test_loss) + ', ' + str(num_violations))
     
     constrained_model = u.create_constrained_model(ffn_model, constraint_encoder)
-    constrained_model = u.model_fit(constrained_model, ffn_model, constraint_encoder, x_train, y_train, mae, optimizer_obj, epochs=10)
+    constrained_model, best_model = u.model_fit(constrained_model, ffn_model, constraint_encoder, x_train, y_train, x_val, y_val, mae, optimizer_obj, epochs=1)
     
-    test_loss = ffn_model.evaluate(x_val, y_val)
-    print('MAE after constraint training: ' + str(test_loss))
+    best_model.compile(optimizer=optimizer_obj, loss=mae)
+    test_loss = best_model.evaluate(x_test, y_test)
+    num_violations = calculate_constraint_violation(best_model, x_test)
+    print('Best MAE, num violations with constraint training: ' + str(test_loss) + ', ' + str(num_violations))
+    
+    test_loss = ffn_model.evaluate(x_test, y_test)
+    num_violations = calculate_constraint_violation(ffn_model, x_test)
+    print('MAE, num violations with constraint training: ' + str(test_loss) + ', ' + str(num_violations))
     
     x_ds = pd.DataFrame(x_train)
+    x_test_ds = pd.DataFrame(x_test)
     y_ds = pd.DataFrame(y_train)
     print(x_ds.describe())
+    print(x_test_ds.describe())
     print(y_ds.describe())
     
 #    print(len(history.history['loss']))
@@ -149,7 +173,7 @@ def train_main_network(x_train, y_train, x_val, y_val, constraint_encoder):
     pass
 
 if __name__=="__main__":
-    (x_train, y_train), (x_val, y_val) = create_dataset_main(sys.argv[1], sys.argv[2], sys.argv[3])
+    (x_train, y_train), (x_val, y_val), (x_test, y_test) = create_dataset_main(sys.argv[1], sys.argv[2], sys.argv[3])
     model_em = train_secondary_network(y_train)
 #    model_em = None
-    train_main_network(x_train, y_train, x_val, y_val, model_em)
+    train_main_network(x_train, y_train, x_val, y_val, x_test, y_test, model_em)

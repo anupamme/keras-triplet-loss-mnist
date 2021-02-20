@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import tensorflow_addons as tfa
+import heapq
 
 def accuracy(predictions, values):
     correct = 0.0
@@ -82,8 +83,13 @@ def convert_to_vocab(float_str):
             out.append(11)
         elif ch == 'n':
             out.append(12)
+            print('number with n' + float_str)
         elif ch == 'a':
-            out.append(13)    
+            out.append(13)
+            print('number with a' + float_str)
+        elif ch == 'e':
+            out.append(14)
+            print('number with e' + float_str)
         else:
             out.append(int(ch))
     if len(out) < 10:
@@ -94,15 +100,15 @@ def convert_to_vocab(float_str):
 
 def get_loss_em(is_triplet=False):
     if is_triplet:
-#        return tfa.losses.contrastive_loss()
-        return tfa.losses.TripletSemiHardLoss()
+        return tfa.losses.contrastive_loss()
+#        return tfa.losses.TripletSemiHardLoss()
     else:
         return tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
 
 def get_optimiser_em():
     return tf.keras.optimizers.Adam(0.001)
 
-def get_model_em(batch_size, vocab_size=14, embedding_size=512, variables=1, bidirectional=True, share_embeddings=True):
+def get_model_em(batch_size, vocab_size=15, embedding_size=512, variables=1, bidirectional=True, share_embeddings=True):
     lstm_features = 512
     if share_embeddings:
         embedding_layer = tf.keras.layers.Embedding(
@@ -125,7 +131,10 @@ def get_model_em(batch_size, vocab_size=14, embedding_size=512, variables=1, bid
         lstm_out = tf.stack(lstm_outs, 1)
         print('variables', variables)
         lstm_out = tf.reshape(lstm_out, [-1, variables * lstm_features])
-        predictions = tf.keras.layers.Dense(2, activation='softmax', dtype='float32')(lstm_out)
+        layer_1 = tf.keras.layers.Dense(512, activation='relu')(lstm_out)
+        layer_2 = tf.keras.layers.Dense(256, activation='relu')(layer_1)
+        
+        predictions = tf.keras.layers.Dense(2, activation='softmax', dtype='float32')(layer_2)
 
         # if bidirectional:
         #     lstm_outs = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(lstm_features)) (embeddings)
@@ -207,7 +216,7 @@ def constrained_loss(model, x, y, training, loss_obj, constraint_loss):
     
     # Calculate contraint penalties
 #    print(probs)
-    cl = 0.01 * constraint_loss(y_true=y[1], y_pred=probs)
+    cl = 2.0 * constraint_loss(y_true=y[1], y_pred=probs)
 #    print(tf.math.exp(cl))
     formula1 = tf.multiply(loss, tf.math.exp(cl)) # could use 2 instead of e as the base
     # print('formula1', formula1)
@@ -241,7 +250,7 @@ def grad(model, inputs, targets, loss_object, constraint_loss=None):
     return loss_value, tape.gradient(loss_value, model.trainable_variables)
 
 
-def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, loss, optimizer, epochs=1, batch_size=32):
+def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, x_val, y_val, loss, optimizer, epochs=1, batch_size=32):
     """[summary]
 
     Args:
@@ -255,6 +264,10 @@ def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, lo
         epochs (int, optional): [description]. Defaults to 1.
         batch_size (int, optional): [description]. Defaults to 32.
     """
+    loss_value_queue = []
+    best_model = None
+    best_loss = None
+    best_epoch_id = None
     for e in range(epochs):
         for i in range(0, len(x_train), batch_size):
             batch_x = x_train[i : i + batch_size]
@@ -262,11 +275,18 @@ def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, lo
             batch_y = y_train[i : i + batch_size]
 
             predictions = model.predict(batch_x)
+            import pdb
+            pdb.set_trace()
             # Convert predictions to input format
 #            print('prediction for vocab: ' + str(predictions))
-            const_inputs = [[convert_to_vocab(str(prediction[0]))[:10]] for prediction in predictions]
+#            const_inputs = [[convert_to_vocab(str(prediction[0]))[:10]] for prediction in predictions]
+            const_inputs = []
+            for prediction in predictions:
+                inner_list = []
+                for pred_item in prediction:
+                    inner_list.append(convert_to_vocab(str(pred_item))[:10])
+                const_inputs.append(inner_list)
 #            const_inputs = [[convert_to_vocab(str(prediction[0]))[:10], convert_to_vocab(str(prediction[1]))[:10]] for prediction in predictions]
-            
             for l in range(len(constraint_encoder.layers)):
                 constraint_encoder.layers[l].trainable = False
             
@@ -288,7 +308,21 @@ def model_fit(constrained_model, model, constraint_encoder, x_train, y_train, lo
             constraint_loss = tf.keras.losses.SparseCategoricalCrossentropy(
                 from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
             loss_value, grads = grad(constrained_model, batch_input, batch_out, loss, constraint_loss)
+            
+#            if len(loss_value_queue) < 5:
+#                heapq.heappush(loss_value_queue, -loss_val)
+#            else:
+#                heapq.pushpop(loss_value_queue, -loss_val)
+            
             print('constrained_loss=', loss_value)
             # print(constrained_model.trainable_variables) # Double checking that the encoder is not being retrained.
             optimizer.apply_gradients(zip(grads, constrained_model.trainable_variables))
-    return constrained_model
+        validation_loss = model.evaluate(x_val, y_val)
+        print('validation loss: ' + str(validation_loss) + ', ' + str(e))
+        if best_loss == None or validation_loss < best_loss:
+            best_loss = validation_loss
+            best_model = tf.keras.models.clone_model(model)
+            best_epoch_id = e
+            print('change best loss, epoch: ' + str(best_loss) + ', ' + str(best_epoch_id))
+    print('final best loss, epoch: ' + str(best_loss) + ', ' + str(best_epoch_id))
+    return constrained_model, best_model
