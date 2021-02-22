@@ -133,8 +133,10 @@ def get_model_em(batch_size, vocab_size=15, embedding_size=512, variables=1, bid
         lstm_out = tf.reshape(lstm_out, [-1, variables * lstm_features])
         layer_1 = tf.keras.layers.Dense(512, activation='relu')(lstm_out)
         layer_2 = tf.keras.layers.Dense(256, activation='relu')(layer_1)
+        layer_3 = tf.keras.layers.Dense(128, activation='relu')(layer_2)
+        layer_4 = tf.keras.layers.Dense(64, activation='relu')(layer_3)
         
-        predictions = tf.keras.layers.Dense(2, activation='softmax', dtype='float32')(layer_2)
+        predictions = tf.keras.layers.Dense(2, activation='softmax', dtype='float32')(layer_4)
 
         # if bidirectional:
         #     lstm_outs = tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(lstm_features)) (embeddings)
