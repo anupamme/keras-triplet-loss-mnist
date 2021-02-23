@@ -89,7 +89,7 @@ def train_secondary_network():
 
 sample x1 from Gaussian
 
-x: x(t), y(t), z(t) | (t): z
+x: x(t), y(t) | (t): z
 '''    
 def create_synthetic_dataset_main(data_size=10000):
     count = 0

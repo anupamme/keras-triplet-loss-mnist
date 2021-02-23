@@ -105,7 +105,7 @@ def train_secondary_network():
         optimizer=optimizer_em,
         loss=loss_em)
     
-    model_em.fit(x_train_em, y_train_em, batch_size=batch_size, epochs=2, validation_data=(x_val, y_val))
+    model_em.fit(x_train_em, y_train_em, batch_size=batch_size, epochs=10, validation_data=(x_val, y_val))
     
     prediction_probs = model_em.predict(x_test_em)
     predictions = [int(np.round(p[1])) for p in prediction_probs]
